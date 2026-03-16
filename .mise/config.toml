@@ -1,0 +1,115 @@
+[vars]
+
+worktree = 'mise'
+
+[tasks.root]
+
+description = "Show the root of mise-non-place in this context"
+run = 'echo "$MISE_PROJECT_ROOT"'
+
+# mise-non-place utility tasks
+# Run from .mise-non-place/ or mise/ directory
+
+[tasks.new]
+
+description = "Clone mise-non-place to a project (prompts for selection)"
+run = """
+
+MNP_NAME="${MISE_PROJECT_ROOT##*/}"
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+SEARCH_DIR="$(realpath "${1:-../..}")"
+
+echo "Current branch: $CURRENT_BRANCH"
+echo "Projects without $MNP_NAME in $SEARCH_DIR:"
+echo ""
+
+i=1
+for dir in "$SEARCH_DIR"/*/; do
+    [ ! -d "$dir/.git" ] && continue
+    [ ! -d "$dir/$MNP_NAME" ] && continue
+    
+    echo "$i) "${dir##*/}"
+    i=$((i + 1))
+done
+
+echo ""
+read -p "Enter number (or any other input to cancel): " num
+
+if ! [[ "$num" =~ ^[0-9]+$ ]] || [ "$num" -lt 1 ] || [ "$num" -ge "$i" ]; then
+    echo "Cancelled"
+    exit 0
+fi
+
+i=1
+for dir in "$SEARCH_DIR"/*/; do
+    if [ -d "$dir/.git" ] && [ ! -d "$dir/$MNP_NAME" ]; then
+        if [ "$i" -eq "$num" ]; then
+            target="$(basename "$dir")"
+            break
+        fi
+        i=$((i + 1))
+    fi
+done
+
+echo "Selected: $target"
+echo "Creating branch: $MNP_WORKTREE/$target from $CURRENT_BRANCH"
+git branch "$MNP_WORKTREE/$target" "$CURRENT_BRANCH"
+echo "Done. Now run: git worktree add ../$target $MNP_WORKTREE/$target"
+"""
+
+[tasks.list]
+
+description = "List all projects in SEARCH_DIR with [x]/[ ] status"
+run = """
+set -euo pipefail
+MNP_NAME="$(basename "$MISE_PROJECT_ROOT")"
+SEARCH_DIR="$(realpath "${1:-../..}")"
+
+echo "Projects with $MNP_NAME in $SEARCH_DIR:"
+echo ""
+
+for dir in "$SEARCH_DIR"/*/; do
+    [ -d "$dir/.git" ] && [ -d "$dir/$MNP_NAME" ] && echo "[x] $(basename "$dir")"
+    [ -d "$dir/.git" ] && [ ! -d "$dir/$MNP_NAME" ] && echo "[ ] $(basename "$dir")"
+done
+"""
+
+
+[tasks.worktree]
+
+description = "Add worktree to project (creates ./mise or ./.mise)"
+run = """
+
+# Must be in .mise-non-place directory
+if [[ "$PWD" != "$MISE_PROJECT_ROOT"* ]]; then
+    echo "Run from $MISE_PROJECT_ROOT directory"
+    exit 1
+fi
+
+# Check if worktree already exists
+if git -C \"$MISE_PROJECT_ROOT\" worktree list | grep -q \"$MNP_WORKTREE \"; then
+    echo "Worktree $MNP_WORKTREE already exists"
+    exit 0
+fi
+
+# Create worktree
+git worktree add ../$MNP_WORKTREE .
+echo "Created worktree at ../$MNP_WORKTREE"
+"""
+
+
+[tasks.hide]
+
+description = "Hide mise-non-place from project git via .git/info/exclude"
+run = """
+set -euo pipefail
+cd \"$MISE_PROJECT_ROOT\"
+
+mkdir -p .git/info
+if ! grep -q \"^.mise-non-place/\" .git/info/exclude 2>/dev/null; then
+    echo ".mise-non-place/" >> .git/info/exclude
+    echo "Added .mise-non-place/ to .git/info/exclude"
+else
+    echo ".mise-non-place/ already in exclude"
+fi
+"""
