@@ -1,6 +1,6 @@
 [vars]
 
-worktree = "mise mise-test"
+worktree = "mise"
 
 # mise-non-place utility tasks
 # Run from .mise-non-place/ or mise/ directory
