@@ -88,19 +88,44 @@ git config --local mise-non-place.picked "$SELECTED"
 printf 'git config --local mise-non-place.picked "%s"\n' "$(git config --local mise-non-place.picked)"
 """
 
-# Usage: mise run new:worktree [<worktree_name> [<template>]]
-# Example: mise run new:worktree
+# Usage: mise run worktree:new [<worktree_name> [<template>]]
+# Example: mise run worktree:new
 [tasks.new]
-run = "mise run new:worktree {{@args}}"
+run = "mise run worktree:new {{@args}}"
 
 [tasks.status]
-description = "Show picked project and configured worktrees"
+description = "Show picked project and configured worktrees, or list all configured in a dir"
 run = """
 #!/usr/bin/env bash
 set -euo pipefail
 
 MNP_NAME="$(basename "$MISE_PROJECT_ROOT")"
 
+# If arg provided, list all projects with mise-non-place in that dir
+if [ -n "${1:-}" ]; then
+    SEARCH_DIR="$(realpath "$1")"
+    if [ ! -d "$SEARCH_DIR" ]; then
+        echo "Error: Directory '$SEARCH_DIR' does not exist." >&2
+        exit 1
+    fi
+    
+    for dir in "$SEARCH_DIR"/*/; do
+        if [ -d "$dir/$MNP_NAME" ]; then
+            proj_name="$(basename "$dir")"
+            echo "$proj_name:"
+            git -C "$dir/$MNP_NAME" worktree list --porcelain | while read -r line; do
+                case "$line" in
+                    "worktree "*) wt="${line#worktree }"; echo "  $wt" ;;
+                    "branch refs/heads/"*) br="${line#branch refs/heads/}"; echo "    -> $br" ;;
+                esac
+            done
+            echo ""
+        fi
+    done
+    exit 0
+fi
+
+# Otherwise show picked project
 PICKED="$(git config --local --get mise-non-place.picked 2>/dev/null || true)"
 if [ -n "$PICKED" ]; then
     echo "Picked: $PICKED"

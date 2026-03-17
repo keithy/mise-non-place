@@ -2,9 +2,9 @@
 #MISE description="Add a worktree to a picked project"
 #MISE raw="true"
 
-# new/worktree - Add a worktree to a project
+# worktree/new - Add a worktree to a project
 # Usage:
-#   mise run new:worktree [<worktree_name> [<template>]]
+#   mise run worktree:new [<worktree_name> [<template>]]
 
 set -euo pipefail
 
@@ -43,9 +43,10 @@ if [ ! -d "$TARGET_DIR/.git" ]; then
 fi
 
 TARGET_MNP="$TARGET_DIR/$MNP_NAME"
+TARGET_WT="$TARGET_DIR/$WORKTREE_NAME"
 
-if [ -d "$TARGET_MNP" ]; then
-    echo "Error: $MNP_NAME already exists in $TARGET_DIR" >&2
+if [ -d "$TARGET_WT" ]; then
+    echo "Error: Worktree '$WORKTREE_NAME' already exists in $TARGET_DIR" >&2
     exit 1
 fi
 
@@ -53,15 +54,22 @@ echo "Injecting into: $TARGET_DIR"
 echo "Template: $TEMPLATE, Worktree: $WORKTREE_NAME"
 echo ""
 
-echo "Cloning $MNP_NAME into $TARGET_DIR..."
-git clone "$MNP_ROOT" "$TARGET_MNP"
+# Clone if not already present
+if [ ! -d "$TARGET_MNP" ]; then
+    echo "Cloning $MNP_NAME into $TARGET_DIR..."
+    git clone "$MNP_ROOT" "$TARGET_MNP"
+else
+    echo "Using existing $MNP_NAME in $TARGET_DIR"
+fi
 
 # Update pick to point to the new project
 git config --local mise-non-place.picked "$TARGET_DIR"
 
 echo "Updated pick to: $TARGET_DIR"
 
-branch_name="$WORKTREE_NAME/$(basename "$TARGET_DIR")"
+branch_name="$(basename "$TARGET_DIR")/$WORKTREE_NAME"
+branch_name="${branch_name//\/\./\/%2E}"
+branch_name="${branch_name// /%20}"
 
 echo "Creating worktree '$WORKTREE_NAME'..."
 if git -C "$TARGET_MNP" show-ref --verify --quiet "refs/remotes/origin/$branch_name"; then

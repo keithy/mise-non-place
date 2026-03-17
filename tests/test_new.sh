@@ -6,7 +6,7 @@ describe "mise-non-place CLI tasks" && {
 
   export TEST_DIR="/tmp/mnp-test-suite"
   
-  # Setup function equivalent
+  # Setup
   rm -rf "$TEST_DIR"
   mkdir -p "$TEST_DIR/dummy-project"
   git -C "$TEST_DIR/dummy-project" init -q
@@ -14,10 +14,14 @@ describe "mise-non-place CLI tasks" && {
   git -C "$TEST_DIR/dummy-project" add test.txt
   git -C "$TEST_DIR/dummy-project" commit -qm "init"
   
-  context "when injecting an empty template" && {
+  context "when injecting with pick + worktree:new" && {
     
-    # We pipe "1\nmise\n" to select the first project and name it "mise"
-    echo -e "1\nmise" | mise run new:empty "$TEST_DIR"
+    # Pick the project then add worktree
+    cd /code/goclaw/.mise-non-place
+    mise run pick "$TEST_DIR/dummy-project" > /dev/null
+    
+    # Add worktree with defaults (2 newlines for prompts)
+    printf "\n\n" | mise run worktree:new
     RESULT=$?
 
     it "succeeds with exit code 0" && {
@@ -30,7 +34,7 @@ describe "mise-non-place CLI tasks" && {
     }
 
     it "creates the visible mise/ worktree" && {
-      [[ -f "$TEST_DIR/dummy-project/mise/.git" ]]
+      [[ -d "$TEST_DIR/dummy-project/mise" ]]
       should_succeed
     }
 
@@ -41,11 +45,18 @@ describe "mise-non-place CLI tasks" && {
       grep -q "^mise/$" "$TEST_DIR/dummy-project/.git/info/exclude"
       should_succeed
     }
+    
+    it "stores picked value in git config" && {
+      PICKED="$(git config --local --get mise-non-place.picked)"
+      [[ "$PICKED" == "$TEST_DIR/dummy-project" ]]
+      should_succeed
+    }
   }
   
-  context "when removing the injected template" && {
+  context "when removing with remove" && {
     
     # Pipe "1" to confirm
+    cd /code/goclaw/.mise-non-place
     echo "1" | MISE_YES=1 mise run remove "$TEST_DIR" > /dev/null 2>&1
     RESULT=$?
 

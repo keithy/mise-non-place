@@ -69,17 +69,17 @@ Then add worktrees to that project:
 
 ```bash
 # Interactive (prompts for worktree name and template)
-mise run new:worktree
+mise run worktree:new
 
 # With args: <worktree_name> [<template>]
-mise run new:worktree scripts
-mise run new:worktree scripts template/empty
+mise run worktree:new scripts
+mise run worktree:new scripts template/empty
 ```
 
 This will:
-1. Clone `.mise-non-place/` into the target project
+1. Clone `.mise-non-place/` into the target project (if not already present)
 2. Create a worktree at `<worktree_name>/`
-3. Create a branch `<worktree_name>/<project>` from the template
+3. Create a branch `<project>/<worktree_name>` from the template
 4. Trust the mise configuration
 5. Add both directories to `.git/info/exclude`
 6. Update the new `.mise-non-place` such that `pick` points to the new project
@@ -98,7 +98,7 @@ Picked: /path/to/project
 
 Worktrees:
   /path/to/project/.mise-non-place -> main
-  /path/to/project/mise -> mise/project_name
+  /path/to/project/mise -> project_name/mise
 ```
 
 ### Working with your configurations
@@ -130,15 +130,26 @@ Create a branch for your template:
 ```bash
 # From your mise-non-place clone
 git checkout -b template/jdk
-# Add a custom task to .mise/tasks/new/<my-task.bash>
+# Add your config to .mise/config.toml
 git add .mise/config.toml
-git commit -m "Add empty template"
-git push origin template/empty
+git commit -m "Add JDK template"
+git push origin template/jdk
 git checkout main
 ```
 
 Then use it when creating worktrees:
 
 ```bash
-mise run new:worktree mise template/jdk
+mise run worktree:new mise template/jdk
 ```
+
+### Specialized Tasks
+
+For specialized setups, create task files in `.mise/tasks/worktree/`:
+
+```bash
+# .mise/tasks/worktree/mise-go
+mise run worktree:new mise template/mise-go
+```
+
+Run with `mise run worktree:mise-go`.
