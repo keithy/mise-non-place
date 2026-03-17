@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+#MISE description="Add a worktree to a picked project"
+#MISE raw="true"
+
+# new/worktree - Add a worktree to a project
+# Usage:
+#   mise run new:worktree [<worktree_name> [<template>]]
+
+set -euo pipefail
+
+MNP_ROOT="${MISE_PROJECT_ROOT}"
+MNP_NAME="${MNP_ROOT##*/}"
+
+# Get target from pick
+TARGET_DIR="$(git config --local --get mise-non-place.picked 2>/dev/null || true)"
+if [ -z "$TARGET_DIR" ]; then
+    echo "Error: No project selected. Run 'mise run pick /path/to/project' first." >&2
+    exit 1
+fi
+
+# Parse args: [<worktree_name> [<template>]]
+WORKTREE_NAME="${1:-}"
+TEMPLATE="${2:-}"
+
+# If no args, prompt interactively
+if [ -z "$WORKTREE_NAME" ]; then
+    read -p "Worktree name (default: mise): " WORKTREE_NAME
+    WORKTREE_NAME="${WORKTREE_NAME:-mise}"
+    read -p "Template branch (default: template/empty): " TEMPLATE
+    TEMPLATE="${TEMPLATE:-template/empty}"
+fi
+
+TARGET_DIR="$(realpath "$TARGET_DIR")"
+
+if [ ! -d "$TARGET_DIR" ]; then
+    echo "Error: Directory '$TARGET_DIR' does not exist." >&2
+    exit 1
+fi
+
+if [ ! -d "$TARGET_DIR/.git" ]; then
+    echo "Error: '$TARGET_DIR' is not a git repository." >&2
+    exit 1
+fi
+
+TARGET_MNP="$TARGET_DIR/$MNP_NAME"
+
+if [ -d "$TARGET_MNP" ]; then
+    echo "Error: $MNP_NAME already exists in $TARGET_DIR" >&2
+    exit 1
+fi
+
+echo "Injecting into: $TARGET_DIR"
+echo "Template: $TEMPLATE, Worktree: $WORKTREE_NAME"
+echo ""
+
+echo "Cloning $MNP_NAME into $TARGET_DIR..."
+git clone "$MNP_ROOT" "$TARGET_MNP"
+
+# Update pick to point to the new project
+git config --local mise-non-place.picked "$TARGET_DIR"
+
+echo "Updated pick to: $TARGET_DIR"
+
+branch_name="$WORKTREE_NAME/$(basename "$TARGET_DIR")"
+
+echo "Creating worktree '$WORKTREE_NAME'..."
+if git -C "$TARGET_MNP" show-ref --verify --quiet "refs/remotes/origin/$branch_name"; then
+    echo "Branch $branch_name exists on origin. Using it."
+    git -C "$TARGET_MNP" worktree add "../$WORKTREE_NAME" "$branch_name"
+else
+    echo "Creating new branch $branch_name..."
+    git -C "$TARGET_MNP" worktree add -b "$branch_name" "../$WORKTREE_NAME"
+fi
+
+echo "Trusting mise configuration..."
+(cd "$TARGET_DIR/$WORKTREE_NAME" && mise trust)
+(cd "$TARGET_MNP" && mise trust)
+
+echo "Adding to .git/info/exclude..."
+mkdir -p "$TARGET_DIR/.git/info"
+exclude_file="$TARGET_DIR/.git/info/exclude"
+
+for f in "$MNP_NAME" "$WORKTREE_NAME"; do
+    if [ -f "$exclude_file" ]; then
+        grep -q "^$f/$" "$exclude_file" || echo "$f/" >> "$exclude_file"
+    else
+        echo "$f/" >> "$exclude_file"
+    fi
+done
+
+echo "Done! cd into $TARGET_DIR/$WORKTREE_NAME"

@@ -5,16 +5,9 @@ worktree = "mise"
 # mise-non-place utility tasks
 # Run from .mise-non-place/ or mise/ directory
 
-[tasks.root]
-quiet = true
-description = "Show the root of mise-non-place in this context"
-run = "echo \"$MISE_PROJECT_ROOT\""
-
 [tasks.list]
-
 quiet = true
 description = "List all projects in SEARCH_DIR with [x]/[ ] status"
-
 run = """
   #!/usr/bin/env bash
   set -euo pipefail
@@ -38,106 +31,97 @@ run = """
   done
 """
 
-[tasks.new]
+# Pick a project from a directory (stores selection in git config)
+# Usage: mise run pick [<project_path>]
+[tasks.pick]
 quiet = true
-raw = true
-description = "Clone mise-non-place to a project (prompts for selection)"
+description = "Pick a project from SEARCH_DIR or set directly (stores in git config)"
 run = """
 #!/usr/bin/env bash
 set -euo pipefail
 
-MNP_NAME="${MISE_PROJECT_ROOT##*/}"
-CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-DIR_ARG="${1:-../..}"
-if [ ! -d "$DIR_ARG" ]; then
-    echo "Error: Directory '$DIR_ARG' does not exist."
-    exit 1
+MNP_NAME="${MISE_PROJECT_ROOT##*-}"
+
+# If first arg is a valid directory, use it directly
+if [ -n "${1:-}" ] && [ -d "$1" ] && [ -d "$1/.git" ]; then
+    SELECTED="$(realpath "$1")"
+    git config --local mise-non-place.picked "$SELECTED"
+    echo "git config --local mise-non-place.picked \"$SELECTED\""
+    exit 0
 fi
+
+# Otherwise prompt to pick from SEARCH_DIR
+DIR_ARG="${1:-../..}"
 SEARCH_DIR="$(realpath "$DIR_ARG")"
 
-echo "Current branch: $CURRENT_BRANCH"
-echo "Projects without $MNP_NAME in $SEARCH_DIR:"
-echo ""
+if [ ! -d "$SEARCH_DIR" ]; then
+    echo "Error: Directory '$SEARCH_DIR' does not exist." >&2
+    exit 1
+fi
 
 i=1
+declare -A projects
 for dir in "$SEARCH_DIR"/*/; do
-    if [ -d "$dir/.git" ] && [ ! -d "$dir/$MNP_NAME" ]; then
-        echo "$i) $(basename "$dir")"
+    if [ -d "$dir/.git" ]; then
+        proj_name="$(basename "$dir")"
+        projects[$i]="$dir"
+        echo "$i) $proj_name"
         i=$((i + 1))
     fi
 done
+
+if [ "$i" -eq 1 ]; then
+    echo "No git projects found." >&2
+    exit 1
+fi
 
 echo ""
 read -p "Enter number (or any other input to cancel): " num
 
 if ! [[ "$num" =~ ^[0-9]+$ ]] || [ "$num" -lt 1 ] || [ "$num" -ge "$i" ]; then
-    echo "Cancelled"
-    exit 0
+    echo "Cancelled" >&2
+    exit 1
 fi
 
-i=1
-for dir in "$SEARCH_DIR"/*/; do
-    if [ -d "$dir/.git" ] && [ ! -d "$dir/$MNP_NAME" ]; then
-        if [ "$i" -eq "$num" ]; then
-            target="$(basename "$dir")"
-            break
-        fi
-        i=$((i + 1))
-    fi
-done
-
-echo "Selected: $target"
-TARGET_DIR="$SEARCH_DIR/$target"
-TARGET_MNP="$TARGET_DIR/$MNP_NAME"
-BRANCH_NAME="${MISE_VAR_WORKTREE:-mise}/$target"
-
-echo "Cloning $MNP_NAME into $TARGET_DIR..."
-git clone "$MISE_PROJECT_ROOT" "$TARGET_MNP"
-
-echo "Adding worktree link(s)..."
-# Read MISE_VAR_WORKTREE array correctly, falling back to just 'mise'
-WORKTREES=()
-eval "WORKTREES=(${MISE_VAR_WORKTREE:-mise})"
-
-for wt in "${WORKTREES[@]}"; do
-    echo "Processing worktree: $wt"
-    if git -C "$TARGET_MNP" show-ref --verify --quiet "refs/remotes/origin/$wt/$target"; then
-        echo "Branch $wt/$target already exists in origin. Using it."
-        git -C "$TARGET_MNP" worktree add "../$wt" "$wt/$target"
-    else
-        echo "Creating new branch $wt/$target..."
-        git -C "$TARGET_MNP" worktree add -b "$wt/$target" "../$wt"
-    fi
-    echo "Trusting mise configuration for $wt..."
-    (cd "$TARGET_DIR/$wt" && mise trust)
-done
-
-echo "Trusting main config..."
-(cd "$TARGET_MNP" && mise trust)
-
-echo "Hiding $MNP_NAME and worktrees in $TARGET_DIR/.git/info/exclude..."
-mkdir -p "$TARGET_DIR/.git/info"
-EXCLUDE_FILE="$TARGET_DIR/.git/info/exclude"
-if [ -f "$EXCLUDE_FILE" ]; then
-    grep -v "^$MNP_NAME/$" "$EXCLUDE_FILE" > "$EXCLUDE_FILE.tmp" || true
-    for wt in "${WORKTREES[@]}"; do
-        grep -v "^$wt/$" "$EXCLUDE_FILE.tmp" > "$EXCLUDE_FILE.tmp2" || true
-        mv "$EXCLUDE_FILE.tmp2" "$EXCLUDE_FILE.tmp"
-    done
-    mv "$EXCLUDE_FILE.tmp" "$EXCLUDE_FILE"
-fi
-
-echo "$MNP_NAME/" >> "$EXCLUDE_FILE"
-for wt in "${WORKTREES[@]}"; do
-    echo "$wt/" >> "$EXCLUDE_FILE"
-done
-
-echo "Done! The project is ready."
-echo "You can now cd into $TARGET_DIR and run mise tasks."
+SELECTED="$(realpath "${projects[$num]}")"
+git config --local mise-non-place.picked "$SELECTED"
+echo git config --local mise-non-place.picked "$SELECTED"
 """
 
+# Usage: mise run new:worktree [<worktree_name> [<template>]]
+# Example: mise run new:worktree
+[tasks.new]
+run = "mise run new:worktree {{@args}}"
 
+[tasks.status]
+description = "Show picked project and configured worktrees"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
 
+MNP_NAME="$(basename "$MISE_PROJECT_ROOT")"
+
+PICKED="$(git config --local --get mise-non-place.picked 2>/dev/null || true)"
+if [ -n "$PICKED" ]; then
+    echo "Picked: $PICKED"
+    echo ""
+    
+    MNP_DIR="$PICKED/$MNP_NAME"
+    if [ -d "$MNP_DIR" ]; then
+        echo "Worktrees:"
+        git -C "$MNP_DIR" worktree list --porcelain | while read -r line; do
+            case "$line" in
+                "worktree "*) wt="${line#worktree }" ;;
+                "branch refs/heads/"*) br="${line#branch refs/heads/}"; echo "  $wt -> $br" ;;
+            esac
+        done
+    else
+        echo "No $MNP_NAME configured in $PICKED"
+    fi
+else
+    echo "No project picked. Run 'mise run pick /path' first."
+fi
+"""
 
 [tasks.remove]
 quiet = true
@@ -239,5 +223,3 @@ fi
 
 echo "Cleanup complete."
 """
-
-
