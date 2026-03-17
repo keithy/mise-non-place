@@ -6,6 +6,7 @@ describe "mise-non-place CLI tasks" && {
 
   export TEST_DIR="/tmp/mnp-test-suite"
   export MNP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+  export MNP_NAME="$(basename "$MNP_DIR")"
   
   # Setup
   rm -rf "$TEST_DIR"
@@ -29,8 +30,8 @@ describe "mise-non-place CLI tasks" && {
       expect "$RESULT" to_be 0
     }
 
-    it "creates the hidden .mise-non-place clone" && {
-      [[ -d "$TEST_DIR/dummy-project/.mise-non-place/.git" ]]
+    it "creates the hidden .$MNP_NAME clone" && {
+      [[ -d "$TEST_DIR/dummy-project/.$MNP_NAME/.git" ]]
       should_succeed
     }
 
@@ -40,7 +41,7 @@ describe "mise-non-place CLI tasks" && {
     }
 
     it "adds both folders to the target exclude file" && {
-      grep -q "^.mise-non-place/$" "$TEST_DIR/dummy-project/.git/info/exclude"
+      grep -q "^.$MNP_NAME/$" "$TEST_DIR/dummy-project/.git/info/exclude"
       should_succeed
 
       grep -q "^mise/$" "$TEST_DIR/dummy-project/.git/info/exclude"
@@ -70,7 +71,7 @@ describe "mise-non-place CLI tasks" && {
     }
 
     it "creates encoded branch" && {
-      git -C "$TEST_DIR/dummy-project/.mise-non-place" branch | grep -q "dummy-project/%2Econfig"
+      git -C "$TEST_DIR/dummy-project/.$MNP_NAME" branch | grep -q "dummy-project/%2Econfig"
       should_succeed
     }
   }
@@ -95,8 +96,8 @@ describe "mise-non-place CLI tasks" && {
       should_succeed
     }
 
-    it "keeps .mise-non-place" && {
-      [[ -d "$TEST_DIR/dummy-project/.mise-non-place" ]]
+    it "keeps .$MNP_NAME" && {
+      [[ -d "$TEST_DIR/dummy-project/.$MNP_NAME" ]]
       should_succeed
     }
   }
@@ -118,13 +119,13 @@ describe "mise-non-place CLI tasks" && {
       should_succeed
     }
 
-    it "removes the .mise-non-place clone" && {
-      [[ ! -d "$TEST_DIR/dummy-project/.mise-non-place" ]]
+    it "removes the .$MNP_NAME clone" && {
+      [[ ! -d "$TEST_DIR/dummy-project/.$MNP_NAME" ]]
       should_succeed
     }
 
     it "cleans the exclude file" && {
-      grep -q "^.mise-non-place/$" "$TEST_DIR/dummy-project/.git/info/exclude"
+      grep -q "^.$MNP_NAME/$" "$TEST_DIR/dummy-project/.git/info/exclude"
       should_fail
 
       grep -q "^mise/$" "$TEST_DIR/dummy-project/.git/info/exclude"

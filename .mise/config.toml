@@ -40,13 +40,13 @@ run = """
 #!/usr/bin/env bash
 set -euo pipefail
 
-MNP_NAME="${MISE_PROJECT_ROOT##*-}"
+MNP_NAME="$(basename "$MISE_PROJECT_ROOT")"
 
 # If first arg is a valid directory, use it directly
 if [ -n "${1:-}" ] && [ -d "$1" ] && [ -d "$1/.git" ]; then
     SELECTED="$(realpath "$1")"
-    git config --local mise-non-place.picked "$SELECTED"
-    printf 'git config --local mise-non-place.picked "%s"\n' "$(git config --local mise-non-place.picked)"
+    git config --local "${MNP_NAME}.picked" "$SELECTED"
+    printf 'git config --local %s.picked "%s"\n' "$MNP_NAME" "$(git config --local "${MNP_NAME}.picked")"
     exit 0
 fi
 
@@ -84,8 +84,8 @@ if ! [[ "$num" =~ ^[0-9]+$ ]] || [ "$num" -lt 1 ] || [ "$num" -ge "$i" ]; then
 fi
 
 SELECTED="$(realpath "${projects[$num]}")"
-git config --local mise-non-place.picked "$SELECTED"
-printf 'git config --local mise-non-place.picked "%s"\n' "$(git config --local mise-non-place.picked)"
+git config --local "${MNP_NAME}.picked" "$SELECTED"
+printf 'git config --local %s.picked "%s"\n' "$MNP_NAME" "$(git config --local "${MNP_NAME}.picked")"
 """
 
 # Usage: mise run worktree:add [<worktree_name> [<template>]]
@@ -160,17 +160,17 @@ set -euo pipefail
 MNP_NAME="$(basename "$MISE_PROJECT_ROOT")"
 
 # Get target from pick
-TARGET_DIR="$(git config --local --get mise-non-place.picked 2>/dev/null || true)"
+TARGET_DIR="$(git config --local --get "${MNP_NAME}.picked" 2>/dev/null || true)"
 if [ -z "$TARGET_DIR" ]; then
     echo "Error: No project selected. Run 'mise run pick /path/to/project' first." >&2
     exit 1
 fi
 
 TARGET_DIR="$(realpath "$TARGET_DIR")"
-TARGET_MNP="$TARGET_DIR/$MNP_NAME"
+TARGET_MNP="$TARGET_DIR/.$MNP_NAME"
 
 if [ ! -d "$TARGET_MNP" ]; then
-    echo "Error: No .mise-non-place in $TARGET_DIR" >&2
+    echo "Error: No .$MNP_NAME in $TARGET_DIR" >&2
     exit 1
 fi
 
@@ -194,7 +194,7 @@ rm -rf "$TARGET_MNP"
 # Clean exclude
 if [ -f "$TARGET_DIR/.git/info/exclude" ]; then
     echo "Cleaning exclude file..."
-    for f in "$MNP_NAME" mise scripts .config; do
+    for f in ".$MNP_NAME" mise scripts .config; do
         grep -v "^$f/$" "$TARGET_DIR/.git/info/exclude" > "$TARGET_DIR/.git/info/exclude.tmp" 2>/dev/null || true
         mv "$TARGET_DIR/.git/info/exclude.tmp" "$TARGET_DIR/.git/info/exclude" 2>/dev/null || true
     done

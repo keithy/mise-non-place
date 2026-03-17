@@ -12,7 +12,7 @@ MNP_ROOT="${MISE_PROJECT_ROOT}"
 MNP_NAME="${MNP_ROOT##*/}"
 
 # Get target from pick
-TARGET_DIR="$(git config --local --get mise-non-place.picked 2>/dev/null || true)"
+TARGET_DIR="$(git config --local --get "${MNP_NAME}.picked" 2>/dev/null || true)"
 if [ -z "$TARGET_DIR" ]; then
     echo "Error: No project selected. Run 'mise run pick /path/to/project' first." >&2
     exit 1
@@ -25,11 +25,11 @@ if [ -z "$WORKTREE_NAME" ]; then
 fi
 
 TARGET_DIR="$(realpath "$TARGET_DIR")"
-TARGET_MNP="$TARGET_DIR/$MNP_NAME"
+TARGET_MNP="$TARGET_DIR/.$MNP_NAME"
 TARGET_WT="$TARGET_DIR/$WORKTREE_NAME"
 
 if [ ! -d "$TARGET_MNP" ]; then
-    echo "Error: No .mise-non-place in $TARGET_DIR" >&2
+    echo "Error: No .$MNP_NAME in $TARGET_DIR" >&2
     exit 1
 fi
 

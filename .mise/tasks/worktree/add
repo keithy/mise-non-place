@@ -12,7 +12,7 @@ MNP_ROOT="${MISE_PROJECT_ROOT}"
 MNP_NAME="${MNP_ROOT##*/}"
 
 # Get target from pick
-TARGET_DIR="$(git config --local --get mise-non-place.picked 2>/dev/null || true)"
+TARGET_DIR="$(git config --local --get "${MNP_NAME}.picked" 2>/dev/null || true)"
 if [ -z "$TARGET_DIR" ]; then
     echo "Error: No project selected. Run 'mise run pick /path/to/project' first." >&2
     exit 1
@@ -42,7 +42,7 @@ if [ ! -d "$TARGET_DIR/.git" ]; then
     exit 1
 fi
 
-TARGET_MNP="$TARGET_DIR/$MNP_NAME"
+TARGET_MNP="$TARGET_DIR/.$MNP_NAME"
 TARGET_WT="$TARGET_DIR/$WORKTREE_NAME"
 
 if [ -d "$TARGET_WT" ]; then
@@ -56,14 +56,14 @@ echo ""
 
 # Clone if not already present
 if [ ! -d "$TARGET_MNP" ]; then
-    echo "Cloning $MNP_NAME into $TARGET_DIR..."
+    echo "Cloning .$MNP_NAME into $TARGET_DIR..."
     git clone "$MNP_ROOT" "$TARGET_MNP"
 else
-    echo "Using existing $MNP_NAME in $TARGET_DIR"
+    echo "Using existing .$MNP_NAME in $TARGET_DIR"
 fi
 
 # Update pick to point to the new project
-git config --local mise-non-place.picked "$TARGET_DIR"
+git config --local "${MNP_NAME}.picked" "$TARGET_DIR"
 
 echo "Updated pick to: $TARGET_DIR"
 
@@ -88,12 +88,8 @@ echo "Adding to .git/info/exclude..."
 mkdir -p "$TARGET_DIR/.git/info"
 exclude_file="$TARGET_DIR/.git/info/exclude"
 
-for f in "$MNP_NAME" "$WORKTREE_NAME"; do
-    if [ -f "$exclude_file" ]; then
-        grep -q "^$f/$" "$exclude_file" || echo "$f/" >> "$exclude_file"
-    else
-        echo "$f/" >> "$exclude_file"
-    fi
+for f in ".$MNP_NAME" "$WORKTREE_NAME"; do
+    grep -qF "$f/" "$exclude_file" 2>/dev/null || echo "$f/" >> "$exclude_file"
 done
 
 echo "Done! cd into $TARGET_DIR/$WORKTREE_NAME"
