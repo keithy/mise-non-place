@@ -195,19 +195,27 @@ if [ "$TARGET_DIR" = "$(dirname "$MISE_PROJECT_ROOT")" ]; then
     IS_SELF=1
 fi
 
-# Remove worktrees if they exist
-eval "WORKTREES=(${MISE_VAR_WORKTREE:-mise})"
-for wt in "${WORKTREES[@]}"; do
-    if git -C "$TARGET_DIR/$MNP_NAME" worktree list 2>/dev/null | grep -q "${wt}"; then
-        echo "Removing worktree link $wt from $TARGET_DIR..."
-        git -C "$TARGET_DIR/$MNP_NAME" worktree remove "../${wt}" --force || true
+# Dynamically find and remove all worktrees linked to the target project
+WORKTREES=()
+while read -r wt_path; do
+    if [ "$wt_path" != "$TARGET_DIR/$MNP_NAME" ]; then
+        WORKTREES+=("$(basename "$wt_path")")
     fi
+done < <(git -C "$TARGET_DIR/$MNP_NAME" worktree list 2>/dev/null | awk '{print $1}')
+
+for wt in "${WORKTREES[@]}"; do
+    echo "Removing worktree link $wt from $TARGET_DIR..."
+    git -C "$TARGET_DIR/$MNP_NAME" worktree remove "../${wt}" --force || true
 done
 
 if [ "$IS_SELF" -eq 1 ]; then
     echo "Notice: I cannot delete the $MNP_NAME clone while running from inside it."
-    echo "The worktrees have been cleanly unlinked."
-    echo "To completely remove the clone, run the remove task from a different location."
+    echo "The worktrees have been cleanly unlinked, but $MNP_NAME remains ignored in your git exclude."
+    echo ""
+    echo "To completely finish the removal, step out of this directory and run:"
+    echo "  cd \"$TARGET_DIR\""
+    echo "  rm -rf \"$MNP_NAME\""
+    echo "  grep -v \"^$MNP_NAME/$\" .git/info/exclude > .git/info/exclude.tmp && mv .git/info/exclude.tmp .git/info/exclude"
 else
     echo "Removing cloned repository $MNP_NAME from $TARGET_DIR..."
     rm -rf "$TARGET_DIR/$MNP_NAME"
