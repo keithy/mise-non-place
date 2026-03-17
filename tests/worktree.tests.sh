@@ -5,6 +5,7 @@
 describe "mise-non-place CLI tasks" && {
 
   export TEST_DIR="/tmp/mnp-test-suite"
+  export MNP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
   
   # Setup
   rm -rf "$TEST_DIR"
@@ -17,7 +18,7 @@ describe "mise-non-place CLI tasks" && {
   context "when injecting with pick + worktree:add" && {
     
     # Pick the project then add worktree
-    cd /code/goclaw/.mise-non-place
+    cd "$MNP_DIR"
     mise run pick "$TEST_DIR/dummy-project" > /dev/null
     
     # Add worktree with defaults (2 newlines for prompts)
@@ -103,7 +104,7 @@ describe "mise-non-place CLI tasks" && {
   context "when removing with remove-all" && {
     
     # Pick then remove-all
-    cd /code/goclaw/.mise-non-place
+    cd "$MNP_DIR"
     mise run pick "$TEST_DIR/dummy-project" > /dev/null
     echo "1" | MISE_YES=1 mise run remove-all > /dev/null 2>&1
     RESULT=$?
