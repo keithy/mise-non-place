@@ -46,7 +46,7 @@ MNP_NAME="${MISE_PROJECT_ROOT##*-}"
 if [ -n "${1:-}" ] && [ -d "$1" ] && [ -d "$1/.git" ]; then
     SELECTED="$(realpath "$1")"
     git config --local mise-non-place.picked "$SELECTED"
-    echo "git config --local mise-non-place.picked \"$SELECTED\""
+    printf 'git config --local mise-non-place.picked "%s"\n' "$(git config --local mise-non-place.picked)"
     exit 0
 fi
 
@@ -85,7 +85,7 @@ fi
 
 SELECTED="$(realpath "${projects[$num]}")"
 git config --local mise-non-place.picked "$SELECTED"
-echo git config --local mise-non-place.picked "$SELECTED"
+printf 'git config --local mise-non-place.picked "%s"\n' "$(git config --local mise-non-place.picked)"
 """
 
 # Usage: mise run new:worktree [<worktree_name> [<template>]]
