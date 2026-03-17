@@ -1,6 +1,6 @@
 # mise-non-place
 
-[![Test](https://github.com/keithy/mise-non-place/actions/workflows/test.yml/badge.svg)](https://github.com/keithy/mise-non-place/actions/workflows/test.yml)
+[![Test](https://github.com/keithy/mise-non-place/actions/workflows/run_tests.yml/badge.svg)](https://github.com/keithy/mise-non-place/actions/workflows/run_tests.yml)
 
 *Take your Mise-en-place with you anywhere and everywhere; a re-usable pattern.*
 
