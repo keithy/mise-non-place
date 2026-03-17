@@ -53,6 +53,27 @@ describe "mise-non-place CLI tasks" && {
     }
   }
   
+  context "when adding a second worktree with encoding" && {
+    
+    # Add a worktree with a leading dot (needs encoding)
+    mise run worktree:new .config
+    RESULT=$?
+
+    it "succeeds" && {
+      expect "$RESULT" to_be 0
+    }
+
+    it "creates the .config worktree" && {
+      [[ -d "$TEST_DIR/dummy-project/.config" ]]
+      should_succeed
+    }
+
+    it "creates encoded branch" && {
+      git -C "$TEST_DIR/dummy-project/.mise-non-place" branch | grep -q "dummy-project/%2Econfig"
+      should_succeed
+    }
+  }
+  
   context "when removing with remove" && {
     
     # Pipe "1" to confirm
