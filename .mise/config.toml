@@ -136,27 +136,7 @@ echo "Done! The project is ready."
 echo "You can now cd into $TARGET_DIR and run mise tasks."
 """
 
-[tasks.worktree]
-quiet = true
-description = "Add worktree to project (creates ./mise or ./.mise)"
-run = """
 
-# Must be in .mise-non-place directory
-if [[ "$PWD" != "$MISE_PROJECT_ROOT"* ]]; then
-    echo "Run from $MISE_PROJECT_ROOT directory"
-    exit 1
-fi
-
-# Check if worktree already exists
-if git -C \"$MISE_PROJECT_ROOT\" worktree list | grep -q \"$MNP_WORKTREE \"; then
-    echo "Worktree $MNP_WORKTREE already exists"
-    exit 0
-fi
-
-# Create worktree
-git worktree add ../$MNP_WORKTREE .
-echo "Created worktree at ../$MNP_WORKTREE"
-"""
 
 
 [tasks.remove]
@@ -252,36 +232,4 @@ fi
 echo "Cleanup complete."
 """
 
-[tasks.hide]
-quiet = true
-description = "Hide mise-non-place from project git via .git/info/exclude"
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
 
-# Find project root (one level up from where .mise-non-place is cloned)
-TARGET_DIR="$(dirname \"$MISE_PROJECT_ROOT\")"
-MNP_NAME="${MISE_PROJECT_ROOT##*/}"
-WORKTREES=()
-eval "WORKTREES=(${MISE_VAR_WORKTREE:-mise})"
-
-mkdir -p \"$TARGET_DIR/.git/info\"
-EXCLUDE_FILE=\"$TARGET_DIR/.git/info/exclude\"
-
-if [ -f \"$EXCLUDE_FILE\" ]; then
-    grep -v \"^$MNP_NAME/$\" \"$EXCLUDE_FILE\" > \"$EXCLUDE_FILE.tmp\" || true
-    for wt in \"${WORKTREES[@]}\"; do
-        grep -v \"^$wt/$\" \"$EXCLUDE_FILE.tmp\" > \"$EXCLUDE_FILE.tmp2\" || true
-        mv \"$EXCLUDE_FILE.tmp2\" \"$EXCLUDE_FILE.tmp\"
-    done
-    mv \"$EXCLUDE_FILE.tmp\" \"$EXCLUDE_FILE\"
-fi
-
-echo \"$MNP_NAME/\" >> \"$EXCLUDE_FILE\"
-echo \"Added $MNP_NAME/ to $EXCLUDE_FILE\"
-
-for wt in \"${WORKTREES[@]}\"; do
-    echo \"$wt/\" >> \"$EXCLUDE_FILE\"
-    echo \"Added $wt/ to $EXCLUDE_FILE\"
-done
-"""
