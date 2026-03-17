@@ -1,5 +1,7 @@
 # mise-non-place
 
+[![Test](https://github.com/keithy/mise-non-place/actions/workflows/test.yml/badge.svg)](https://github.com/keithy/mise-non-place/actions/workflows/test.yml)
+
 *Take your Mise-en-place with you anywhere and everywhere; a re-usable pattern.*
 
 Add [mise](https://mise.jdx.dev/) support to any project that doesn't natively have it, without modifying either the local or upstream  repository.
