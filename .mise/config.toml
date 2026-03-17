@@ -148,103 +148,57 @@ else
 fi
 """
 
-[tasks.remove]
+[tasks.remove-all]
+description = "Remove all worktrees and .mise-non-place from picked project"
 quiet = true
 raw = true
-confirm = "Are you sure you want to remove this worktree and its configurations from the target project?"
-description = "Safely remove worktree from project (undo 'new')"
+confirm = "Are you sure you want to remove all worktrees and .mise-non-place?"
 run = """
 #!/usr/bin/env bash
 set -euo pipefail
 
-MNP_NAME="${MISE_PROJECT_ROOT##*/}"
-CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-DIR_ARG="${1:-../..}"
-if [ ! -d "$DIR_ARG" ]; then
-    echo "Error: Directory '$DIR_ARG' does not exist."
+MNP_NAME="$(basename "$MISE_PROJECT_ROOT")"
+
+# Get target from pick
+TARGET_DIR="$(git config --local --get mise-non-place.picked 2>/dev/null || true)"
+if [ -z "$TARGET_DIR" ]; then
+    echo "Error: No project selected. Run 'mise run pick /path/to/project' first." >&2
     exit 1
 fi
-SEARCH_DIR="$(realpath "$DIR_ARG")"
 
-echo "Projects with $MNP_NAME in $SEARCH_DIR:"
-echo ""
+TARGET_DIR="$(realpath "$TARGET_DIR")"
+TARGET_MNP="$TARGET_DIR/$MNP_NAME"
 
-i=1
-for dir in "$SEARCH_DIR"/*/; do
-    if [ -d "$dir/.git" ] && [ -d "$dir/$MNP_NAME" ]; then
-        echo "$i) $(basename "$dir")"
-        i=$((i + 1))
-    fi
-done
-
-echo ""
-read -p "Enter number to remove worktree/branch (or any other input to cancel): " num
-
-if ! [[ "$num" =~ ^[0-9]+$ ]] || [ "$num" -lt 1 ] || [ "$num" -ge "$i" ]; then
-    echo "Cancelled"
-    exit 0
+if [ ! -d "$TARGET_MNP" ]; then
+    echo "Error: No .mise-non-place in $TARGET_DIR" >&2
+    exit 1
 fi
 
-i=1
-for dir in "$SEARCH_DIR"/*/; do
-    if [ -d "$dir/.git" ] && [ -d "$dir/$MNP_NAME" ]; then
-        if [ "$i" -eq "$num" ]; then
-            target="$(basename "$dir")"
-            break
-        fi
-        i=$((i + 1))
-    fi
+# Remove all worktrees
+git -C "$TARGET_MNP" worktree list --porcelain | while read -r line; do
+    case "$line" in
+        "worktree "*) wt="${line#worktree }" ;;
+        "")
+            if [ -n "$wt" ] && [ "$wt" != "$TARGET_MNP" ]; then
+                echo "Removing worktree $wt..."
+                git -C "$TARGET_MNP" worktree remove "$wt" --force 2>/dev/null || true
+            fi
+            ;;
+    esac
 done
 
-echo "Selected: $target"
-TARGET_DIR="$SEARCH_DIR/$target"
+# Remove .mise-non-place
+echo "Removing $TARGET_MNP..."
+rm -rf "$TARGET_MNP"
 
-IS_SELF=0
-if [ "$TARGET_DIR" = "$(dirname "$MISE_PROJECT_ROOT")" ]; then
-    IS_SELF=1
-fi
-
-# Dynamically find and remove all worktrees linked to the target project
-WORKTREES=()
-while read -r wt_path; do
-    if [ "$wt_path" != "$TARGET_DIR/$MNP_NAME" ]; then
-        WORKTREES+=("$(basename "$wt_path")")
-    fi
-done < <(git -C "$TARGET_DIR/$MNP_NAME" worktree list 2>/dev/null | awk '{print $1}')
-
-for wt in "${WORKTREES[@]}"; do
-    echo "Removing worktree link $wt from $TARGET_DIR..."
-    git -C "$TARGET_DIR/$MNP_NAME" worktree remove "../${wt}" --force || true
-done
-
-if [ "$IS_SELF" -eq 1 ]; then
-    echo "Notice: I cannot delete the $MNP_NAME clone while running from inside it."
-    echo "The worktrees have been cleanly unlinked, but $MNP_NAME remains ignored in your git exclude."
-    echo ""
-    echo "To completely finish the removal, step out of this directory and run:"
-    echo "  cd \"$TARGET_DIR\""
-    echo "  rm -rf \"$MNP_NAME\""
-    echo "  grep -v \"^$MNP_NAME/$\" .git/info/exclude > .git/info/exclude.tmp && mv .git/info/exclude.tmp .git/info/exclude"
-else
-    echo "Removing cloned repository $MNP_NAME from $TARGET_DIR..."
-    rm -rf "$TARGET_DIR/$MNP_NAME"
-fi
-
-# Remove from .git/info/exclude
-EXCLUDE_FILE="$TARGET_DIR/.git/info/exclude"
-if [ -f "$EXCLUDE_FILE" ]; then
-    echo "Cleaning $EXCLUDE_FILE..."
-    cp "$EXCLUDE_FILE" "$EXCLUDE_FILE.tmp"
-    if [ "$IS_SELF" -eq 0 ]; then
-        grep -v "^$MNP_NAME/$" "$EXCLUDE_FILE.tmp" > "$EXCLUDE_FILE.tmp2" || true
-        mv "$EXCLUDE_FILE.tmp2" "$EXCLUDE_FILE.tmp"
-    fi
-    for wt in "${WORKTREES[@]}"; do
-        grep -v "^$wt/$" "$EXCLUDE_FILE.tmp" > "$EXCLUDE_FILE.tmp2" || true
-        mv "$EXCLUDE_FILE.tmp2" "$EXCLUDE_FILE.tmp"
+# Clean exclude
+if [ -f "$TARGET_DIR/.git/info/exclude" ]; then
+    echo "Cleaning exclude file..."
+    for f in "$MNP_NAME" mise scripts .config; do
+        grep -v "^$f/$" "$TARGET_DIR/.git/info/exclude" > "$TARGET_DIR/.git/info/exclude.tmp" 2>/dev/null || true
+        mv "$TARGET_DIR/.git/info/exclude.tmp" "$TARGET_DIR/.git/info/exclude" 2>/dev/null || true
     done
-    mv "$EXCLUDE_FILE.tmp" "$EXCLUDE_FILE"
 fi
 
-echo "Cleanup complete."
+echo "Done."
 """

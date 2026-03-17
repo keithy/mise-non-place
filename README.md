@@ -120,7 +120,7 @@ git push origin HEAD
 ⚠️ **Warning: Backup unpushed changes first!**
 
 ```bash
-mise run remove
+mise run remove-all
 ```
 
 This safely unlinks worktrees and cleans up `.git/info/exclude`.

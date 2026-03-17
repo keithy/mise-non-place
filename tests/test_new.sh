@@ -100,11 +100,12 @@ describe "mise-non-place CLI tasks" && {
     }
   }
   
-  context "when removing with remove" && {
+  context "when removing with remove-all" && {
     
-    # Pipe "1" to confirm
+    # Pick then remove-all
     cd /code/goclaw/.mise-non-place
-    echo "1" | MISE_YES=1 mise run remove "$TEST_DIR" > /dev/null 2>&1
+    mise run pick "$TEST_DIR/dummy-project" > /dev/null
+    echo "1" | MISE_YES=1 mise run remove-all > /dev/null 2>&1
     RESULT=$?
 
     it "succeeds with exit code 0" && {
