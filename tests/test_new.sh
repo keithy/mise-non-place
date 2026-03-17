@@ -14,14 +14,14 @@ describe "mise-non-place CLI tasks" && {
   git -C "$TEST_DIR/dummy-project" add test.txt
   git -C "$TEST_DIR/dummy-project" commit -qm "init"
   
-  context "when injecting with pick + worktree:new" && {
+  context "when injecting with pick + worktree:add" && {
     
     # Pick the project then add worktree
     cd /code/goclaw/.mise-non-place
     mise run pick "$TEST_DIR/dummy-project" > /dev/null
     
     # Add worktree with defaults (2 newlines for prompts)
-    printf "\n\n" | mise run worktree:new
+    printf "\n\n" | mise run worktree:add
     RESULT=$?
 
     it "succeeds with exit code 0" && {
@@ -56,7 +56,7 @@ describe "mise-non-place CLI tasks" && {
   context "when adding a second worktree with encoding" && {
     
     # Add a worktree with a leading dot (needs encoding)
-    mise run worktree:new .config
+    mise run worktree:add .config
     RESULT=$?
 
     it "succeeds" && {
@@ -70,6 +70,32 @@ describe "mise-non-place CLI tasks" && {
 
     it "creates encoded branch" && {
       git -C "$TEST_DIR/dummy-project/.mise-non-place" branch | grep -q "dummy-project/%2Econfig"
+      should_succeed
+    }
+  }
+  
+  context "when removing a specific worktree" && {
+    
+    # Remove just the .config worktree
+    mise run worktree:remove .config
+    RESULT=$?
+
+    it "succeeds" && {
+      expect "$RESULT" to_be 0
+    }
+
+    it "removes the .config worktree" && {
+      [[ ! -d "$TEST_DIR/dummy-project/.config" ]]
+      should_succeed
+    }
+
+    it "keeps the mise worktree" && {
+      [[ -d "$TEST_DIR/dummy-project/mise" ]]
+      should_succeed
+    }
+
+    it "keeps .mise-non-place" && {
+      [[ -d "$TEST_DIR/dummy-project/.mise-non-place" ]]
       should_succeed
     }
   }

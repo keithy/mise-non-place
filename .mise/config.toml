@@ -88,10 +88,10 @@ git config --local mise-non-place.picked "$SELECTED"
 printf 'git config --local mise-non-place.picked "%s"\n' "$(git config --local mise-non-place.picked)"
 """
 
-# Usage: mise run worktree:new [<worktree_name> [<template>]]
-# Example: mise run worktree:new
+# Usage: mise run worktree:add [<worktree_name> [<template>]]
+# Example: mise run worktree:add
 [tasks.new]
-run = "mise run worktree:new {{@args}}"
+run = "mise run worktree:add {{@args}}"
 
 [tasks.status]
 description = "Show picked project and configured worktrees, or list all configured in a dir"

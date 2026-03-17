@@ -2,9 +2,9 @@
 #MISE description="Add a worktree to a picked project"
 #MISE raw="true"
 
-# worktree/new - Add a worktree to a project
+# worktree/add - Add a worktree to a project
 # Usage:
-#   mise run worktree:new [<worktree_name> [<template>]]
+#   mise run worktree:add [<worktree_name> [<template>]]
 
 set -euo pipefail
 

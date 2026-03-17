@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+#MISE description="Remove a worktree from the picked project"
+#MISE raw="true"
+
+# worktree/remove - Remove a worktree from a project
+# Usage:
+#   mise run worktree:remove <worktree_name>
+
+set -euo pipefail
+
+MNP_ROOT="${MISE_PROJECT_ROOT}"
+MNP_NAME="${MNP_ROOT##*/}"
+
+# Get target from pick
+TARGET_DIR="$(git config --local --get mise-non-place.picked 2>/dev/null || true)"
+if [ -z "$TARGET_DIR" ]; then
+    echo "Error: No project selected. Run 'mise run pick /path/to/project' first." >&2
+    exit 1
+fi
+
+WORKTREE_NAME="${1:-}"
+if [ -z "$WORKTREE_NAME" ]; then
+    echo "Usage: mise run worktree:remove <worktree_name>" >&2
+    exit 1
+fi
+
+TARGET_DIR="$(realpath "$TARGET_DIR")"
+TARGET_MNP="$TARGET_DIR/$MNP_NAME"
+TARGET_WT="$TARGET_DIR/$WORKTREE_NAME"
+
+if [ ! -d "$TARGET_MNP" ]; then
+    echo "Error: No .mise-non-place in $TARGET_DIR" >&2
+    exit 1
+fi
+
+if [ ! -d "$TARGET_WT" ]; then
+    echo "Error: Worktree '$WORKTREE_NAME' does not exist in $TARGET_DIR" >&2
+    exit 1
+fi
+
+echo "Removing worktree '$WORKTREE_NAME' from $TARGET_DIR..."
+git -C "$TARGET_MNP" worktree remove "../$WORKTREE_NAME" --force
+
+echo "Removing from .git/info/exclude..."
+if [ -f "$TARGET_DIR/.git/info/exclude" ]; then
+    grep -v "^$WORKTREE_NAME/$" "$TARGET_DIR/.git/info/exclude" > "$TARGET_DIR/.git/info/exclude.tmp" || true
+    mv "$TARGET_DIR/.git/info/exclude.tmp" "$TARGET_DIR/.git/info/exclude"
+fi
+
+echo "Done."

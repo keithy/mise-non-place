@@ -71,11 +71,11 @@ Then add worktrees to that project:
 
 ```bash
 # Interactive (prompts for worktree name and template)
-mise run worktree:new
+mise run worktree:add
 
 # With args: <worktree_name> [<template>]
-mise run worktree:new scripts
-mise run worktree:new scripts template/empty
+mise run worktree:add scripts
+mise run worktree:add scripts template/empty
 ```
 
 This will:
