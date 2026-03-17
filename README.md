@@ -1,22 +1,23 @@
 # mise-non-place
 
-Add mise support to any project that doesn't have it.
+Add [mise](https://mise.jdx.dev/) support to any project that doesn't natively have it, without modifying the target repository.
 
 ## Problem
 
-You want to use [mise](https://mise.jdx.dev/) with a non mise-savvy project.
+You want to use `mise` to manage tasks, tools, and environments for a project, but you cannot (or don't want to) commit a `.mise.toml` or `.mise/` directory to the target repository (e.g. because it's a third-party project or doesn't allow forking).
 
 ## Solution
 
-This tool is a **separate repository** for your local mise configuration that
-can be added to any project as a worktree.
+This tool is a standalone repository for your local `mise` configurations that injects itself into target projects using `git worktree`. The configuration stays completely invisible to the target project.
 
-### Why separate repo?
+### The Magic of Git Worktrees
 
-- Some projects don't allow forking
-- Manage mise completely outside the main repository of a project
-- Share mise between multiple projects
-- Easy to backup/export
+1. You start by cloning this repository anywhere on your machine.
+2. The `new` task clones that instance into a target project as a hidden `.mise-non-place/` directory (anchored to the `main` branch).
+3. It then spawns a visible `mise/` directory inside the target project using `git worktree`, checked out to a project-specific branch (e.g., `mise/my-project`).
+4. Both directories are automatically added to the target project's `.git/info/exclude`, making them completely invisible to git.
+
+This gives you a dedicated workspace for your configuration that seamlessly blends into any codebase, while sharing a single git database across all your projects!
 
 ### Reusable Pattern
 
@@ -25,27 +26,6 @@ This same approach works for other shared resources:
 - `scripts-non-place` - shared scripts across projects
 - `config-non-place` - any configuration you want to share
 
-The pattern: **one repo, multiple projects, worktree integration**.
-
-### How it works
-
-1. [clone] this repo to `<project>/.mise-non-place`
-2. [new] Create a branch in `mise-non-place` for this project.
-3. Add as worktree to your project: `git worktree add mise .mise-non-place`
-4. Hide from git: add `.mise-non-place/` to `.git/info/exclude`
-5. Your local config lives in `.mise-non-place/`, invisible to the project
-
-## Usage
-
-```bash
-cd .mise-non-place
-mise run mise-non-place:new
-mise run mise-non-place:worktree
-mise run mise-non-place:hide
-```
-
-## What you need
-
 ## Requirements
 
 - git with worktree support
@@ -53,13 +33,80 @@ mise run mise-non-place:hide
 
 ## Setup
 
+Since you will be storing your own project-specific configurations, start by **forking** the `keithy/mise-non-place` repository on GitHub.
+
+Then, clone your fork to your machine so you can explore it and use its tasks:
+
 ```bash
-# Clone somewhere (e.g., your home directory)
-git clone https://github.com/yourusername/mise-non-place.git ~/.mise-non-place
-
-# Add as worktree to your project (hidden directory)
-git worktree add .mise-non-place ~/.mise-non-place
-
-# Hide from git
-echo ".mise-non-place/" >> .git/info/exclude
+git clone https://github.com/yourusername/mise-non-place.git
+cd mise-non-place
 ```
+
+## Usage
+
+From your `mise-non-place` clone, you can safely and instantly inject a `mise` environment into any other project!
+
+### Add to a project
+
+Run the `new` task and point it at the directory containing your target projects (e.g., `~/code`):
+
+```bash
+mise run new ~/code
+```
+
+This will:
+1. Scan the provided directory (`~/code`) for other git repositories.
+2. Prompt you to select a target project.
+3. Automatically clone `.mise-non-place/` into the target project.
+4. Create a specific branch for that project (e.g. `mise/<project>`).
+5. Create a visible `mise/` worktree linked to that branch.
+6. Automatically trust the generated `mise` configurations.
+7. Auto-hide the directories in the target project's `.git/info/exclude`.
+
+*Note: Because every injected project contains a full clone in `.mise-non-place/`, you can run `mise run new` from inside any seeded project to infect new projects!*
+
+### Working with your configurations
+
+Once injected, simply `cd` into the visible `mise/` folder inside your target project.
+
+Because this folder is a standard git worktree connected to its own branch (`mise/<project>`), you can manage it exactly like any other git repository:
+
+```bash
+cd /path/to/target/project/mise
+# Add tasks or edit config.toml
+git add .mise/config.toml
+git commit -m "Add new build tasks for my project"
+git push origin HEAD
+```
+
+Any changes you commit here are safely isolated to this specific project's configuration branch in your fork!
+
+### Remove from a project
+
+⚠️ **Warning: Removal is destructive to unpushed changes!** 
+Because the `.mise-non-place` directory in your target project is a full clone, deleting it will instantly destroy any commits you made in the `mise/` worktree that you haven't yet pushed to your central repository (using `git push origin HEAD`).
+
+You can run the `remove` task from anywhere. If you run it from *inside* the project you are trying to clean up, it will safely unlink the worktrees but leave the hidden `.mise-non-place/` clone intact (since a script cannot delete the directory it is actively running from).
+
+To completely remove the clone as well, simply run the command from another location:
+
+```bash
+cd /path/to/another/project/.mise-non-place
+mise run remove /path/to/the/target/project
+```
+
+As long as your changes were pushed, this safely unlinks the worktree, removes the hidden directories, and cleans up the `.git/info/exclude`. Your configuration branches remain safely untouched in your central repository!
+
+## Advanced Configuration
+
+You can customize the names of the generated worktree directories by editing the `[vars]` block in your `.mise/config.toml`. 
+
+It even supports multiple worktrees! Just provide a space-separated string:
+
+```toml
+[vars]
+# Creates two active worktrees in the target project: `mise/` and `mise-test/`
+worktree = "mise mise-test"
+```
+
+Each folder generated from the array gets its own dedicated branch (e.g., `mise/<project>` and `mise-test/<project>`), giving you perfect isolation between different environments or configurations in the same target project!

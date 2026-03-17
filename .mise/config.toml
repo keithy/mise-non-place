@@ -1,23 +1,59 @@
 [vars]
 
-worktree = 'mise'
-
-[tasks.root]
-
-description = "Show the root of mise-non-place in this context"
-run = 'echo "$MISE_PROJECT_ROOT"'
+worktree = "mise mise-test"
 
 # mise-non-place utility tasks
 # Run from .mise-non-place/ or mise/ directory
 
-[tasks.new]
+[tasks.root]
+quiet = true
+description = "Show the root of mise-non-place in this context"
+run = "echo \"$MISE_PROJECT_ROOT\""
 
+[tasks.list]
+
+quiet = true
+description = "List all projects in SEARCH_DIR with [x]/[ ] status"
+
+run = """
+  #!/usr/bin/env bash
+  set -euo pipefail
+  
+  MNP_NAME="${MISE_PROJECT_ROOT##*/}"
+  DIR_ARG="${1:-../..}"
+  if [ ! -d "$DIR_ARG" ]; then
+    echo "Error: Directory '$DIR_ARG' does not exist."
+    exit 1
+  fi
+  SEARCH_DIR="$(realpath "$DIR_ARG")"
+
+  echo "Projects with $MNP_NAME in $SEARCH_DIR:"
+  echo ""
+
+  for dir in "$SEARCH_DIR"/*/; do
+    if [ -d "$dir/.git" ]; then
+        [ -d "$dir/$MNP_NAME" ] && printf "[x] " || printf "[ ] "
+        basename "$dir"
+    fi
+  done
+"""
+
+[tasks.new]
+quiet = true
+raw = true
 description = "Clone mise-non-place to a project (prompts for selection)"
 run = """
+#!/usr/bin/env bash
+set -euo pipefail
 
 MNP_NAME="${MISE_PROJECT_ROOT##*/}"
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-SEARCH_DIR="$(realpath "${1:-../..}")"
+DIR_ARG="${1:-../..}"
+if [ ! -d "$DIR_ARG" ]; then
+    echo "Error: Directory '$DIR_ARG' does not exist."
+    exit 1
+fi
+SEARCH_DIR="$(realpath "$DIR_ARG")"
 
 echo "Current branch: $CURRENT_BRANCH"
 echo "Projects without $MNP_NAME in $SEARCH_DIR:"
@@ -25,11 +61,10 @@ echo ""
 
 i=1
 for dir in "$SEARCH_DIR"/*/; do
-    [ ! -d "$dir/.git" ] && continue
-    [ ! -d "$dir/$MNP_NAME" ] && continue
-    
-    echo "$i) "${dir##*/}"
-    i=$((i + 1))
+    if [ -d "$dir/.git" ] && [ ! -d "$dir/$MNP_NAME" ]; then
+        echo "$i) $(basename "$dir")"
+        i=$((i + 1))
+    fi
 done
 
 echo ""
@@ -52,31 +87,53 @@ for dir in "$SEARCH_DIR"/*/; do
 done
 
 echo "Selected: $target"
-echo "Creating branch: $MNP_WORKTREE/$target from $CURRENT_BRANCH"
-git branch "$MNP_WORKTREE/$target" "$CURRENT_BRANCH"
-echo "Done. Now run: git worktree add ../$target $MNP_WORKTREE/$target"
-"""
+TARGET_DIR="$SEARCH_DIR/$target"
+TARGET_MNP="$TARGET_DIR/$MNP_NAME"
+BRANCH_NAME="${MISE_VAR_WORKTREE:-mise}/$target"
 
-[tasks.list]
+echo "Cloning $MNP_NAME into $TARGET_DIR..."
+git clone "$MISE_PROJECT_ROOT" "$TARGET_MNP"
 
-description = "List all projects in SEARCH_DIR with [x]/[ ] status"
-run = """
-set -euo pipefail
-MNP_NAME="$(basename "$MISE_PROJECT_ROOT")"
-SEARCH_DIR="$(realpath "${1:-../..}")"
+echo "Adding worktree link(s)..."
+# Read MISE_VAR_WORKTREE array correctly, falling back to just 'mise'
+WORKTREES=()
+eval "WORKTREES=(${MISE_VAR_WORKTREE:-mise})"
 
-echo "Projects with $MNP_NAME in $SEARCH_DIR:"
-echo ""
-
-for dir in "$SEARCH_DIR"/*/; do
-    [ -d "$dir/.git" ] && [ -d "$dir/$MNP_NAME" ] && echo "[x] $(basename "$dir")"
-    [ -d "$dir/.git" ] && [ ! -d "$dir/$MNP_NAME" ] && echo "[ ] $(basename "$dir")"
+for wt in "${WORKTREES[@]}"; do
+    echo "Processing worktree: $wt"
+    if git -C "$TARGET_MNP" show-ref --verify --quiet "refs/remotes/origin/$wt/$target"; then
+        echo "Branch $wt/$target already exists in origin. Using it."
+        git -C "$TARGET_MNP" worktree add "../$wt" "$wt/$target"
+    else
+        echo "Creating new branch $wt/$target..."
+        git -C "$TARGET_MNP" worktree add -b "$wt/$target" "../$wt"
+    fi
+    echo "Trusting mise configuration for $wt..."
+    (cd "$TARGET_DIR/$wt" && mise trust)
 done
-"""
 
+echo "Trusting main config..."
+(cd "$TARGET_MNP" && mise trust)
+
+echo "Hiding $MNP_NAME and worktrees in $TARGET_DIR/.git/info/exclude..."
+mkdir -p "$TARGET_DIR/.git/info"
+EXCLUDE_FILE="$TARGET_DIR/.git/info/exclude"
+if ! grep -q "^$MNP_NAME/$" "$EXCLUDE_FILE" 2>/dev/null; then
+    echo "$MNP_NAME/" >> "$EXCLUDE_FILE"
+fi
+
+for wt in "${WORKTREES[@]}"; do
+    if ! grep -q "^$wt/$" "$EXCLUDE_FILE" 2>/dev/null; then
+        echo "$wt/" >> "$EXCLUDE_FILE"
+    fi
+done
+
+echo "Done! The project is ready."
+echo "You can now cd into $TARGET_DIR and run mise tasks."
+"""
 
 [tasks.worktree]
-
+quiet = true
 description = "Add worktree to project (creates ./mise or ./.mise)"
 run = """
 
@@ -98,18 +155,127 @@ echo "Created worktree at ../$MNP_WORKTREE"
 """
 
 
-[tasks.hide]
+[tasks.remove]
+quiet = true
+raw = true
+confirm = "Are you sure you want to remove this worktree and its configurations from the target project?"
+description = "Safely remove worktree from project (undo 'new')"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
 
+MNP_NAME="${MISE_PROJECT_ROOT##*/}"
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+DIR_ARG="${1:-../..}"
+if [ ! -d "$DIR_ARG" ]; then
+    echo "Error: Directory '$DIR_ARG' does not exist."
+    exit 1
+fi
+SEARCH_DIR="$(realpath "$DIR_ARG")"
+
+echo "Projects with $MNP_NAME in $SEARCH_DIR:"
+echo ""
+
+i=1
+for dir in "$SEARCH_DIR"/*/; do
+    if [ -d "$dir/.git" ] && [ -d "$dir/$MNP_NAME" ]; then
+        echo "$i) $(basename "$dir")"
+        i=$((i + 1))
+    fi
+done
+
+echo ""
+read -p "Enter number to remove worktree/branch (or any other input to cancel): " num
+
+if ! [[ "$num" =~ ^[0-9]+$ ]] || [ "$num" -lt 1 ] || [ "$num" -ge "$i" ]; then
+    echo "Cancelled"
+    exit 0
+fi
+
+i=1
+for dir in "$SEARCH_DIR"/*/; do
+    if [ -d "$dir/.git" ] && [ -d "$dir/$MNP_NAME" ]; then
+        if [ "$i" -eq "$num" ]; then
+            target="$(basename "$dir")"
+            break
+        fi
+        i=$((i + 1))
+    fi
+done
+
+echo "Selected: $target"
+TARGET_DIR="$SEARCH_DIR/$target"
+
+IS_SELF=0
+if [ "$TARGET_DIR" = "$(dirname "$MISE_PROJECT_ROOT")" ]; then
+    IS_SELF=1
+fi
+
+# Remove worktrees if they exist
+eval "WORKTREES=(${MISE_VAR_WORKTREE:-mise})"
+for wt in "${WORKTREES[@]}"; do
+    if git -C "$TARGET_DIR/$MNP_NAME" worktree list 2>/dev/null | grep -q "${wt}"; then
+        echo "Removing worktree link $wt from $TARGET_DIR..."
+        git -C "$TARGET_DIR/$MNP_NAME" worktree remove "../${wt}" --force
+    fi
+done
+
+if [ "$IS_SELF" -eq 1 ]; then
+    echo "Notice: I cannot delete the $MNP_NAME clone while running from inside it."
+    echo "The worktrees have been cleanly unlinked."
+    echo "To completely remove the clone, run the remove task from a different location."
+else
+    echo "Removing cloned repository $MNP_NAME from $TARGET_DIR..."
+    rm -rf "$TARGET_DIR/$MNP_NAME"
+fi
+
+# Remove from .git/info/exclude
+EXCLUDE_FILE="$TARGET_DIR/.git/info/exclude"
+if [ -f "$EXCLUDE_FILE" ]; then
+    echo "Cleaning $EXCLUDE_FILE..."
+    cp "$EXCLUDE_FILE" "$EXCLUDE_FILE.tmp"
+    if [ "$IS_SELF" -eq 0 ]; then
+        grep -v "^$MNP_NAME/$" "$EXCLUDE_FILE.tmp" > "$EXCLUDE_FILE.tmp2" || true
+        mv "$EXCLUDE_FILE.tmp2" "$EXCLUDE_FILE.tmp"
+    fi
+    for wt in "${WORKTREES[@]}"; do
+        grep -v "^$wt/$" "$EXCLUDE_FILE.tmp" > "$EXCLUDE_FILE.tmp2" || true
+        mv "$EXCLUDE_FILE.tmp2" "$EXCLUDE_FILE.tmp"
+    done
+    mv "$EXCLUDE_FILE.tmp" "$EXCLUDE_FILE"
+fi
+
+echo "Cleanup complete."
+"""
+
+[tasks.hide]
+quiet = true
 description = "Hide mise-non-place from project git via .git/info/exclude"
 run = """
 set -euo pipefail
-cd \"$MISE_PROJECT_ROOT\"
 
-mkdir -p .git/info
-if ! grep -q \"^.mise-non-place/\" .git/info/exclude 2>/dev/null; then
-    echo ".mise-non-place/" >> .git/info/exclude
-    echo "Added .mise-non-place/ to .git/info/exclude"
+# Find project root (one level up from where .mise-non-place is cloned)
+TARGET_DIR="$(dirname \"$MISE_PROJECT_ROOT\")"
+MNP_NAME="${MISE_PROJECT_ROOT##*/}"
+WORKTREES=()
+eval "WORKTREES=(${MISE_VAR_WORKTREE:-mise})"
+
+mkdir -p \"$TARGET_DIR/.git/info\"
+EXCLUDE_FILE=\"$TARGET_DIR/.git/info/exclude\"
+
+if ! grep -q \"^$MNP_NAME/\" \"$EXCLUDE_FILE\" 2>/dev/null; then
+    echo \"$MNP_NAME/\" >> \"$EXCLUDE_FILE\"
+    echo \"Added $MNP_NAME/ to $EXCLUDE_FILE\"
 else
-    echo ".mise-non-place/ already in exclude"
+    echo \"$MNP_NAME/ already in exclude\"
 fi
+
+for wt in "${WORKTREES[@]}"; do
+    if ! grep -q \"^$wt/\" \"$EXCLUDE_FILE\" 2>/dev/null; then
+        echo \"$wt/\" >> \"$EXCLUDE_FILE\"
+        echo \"Added $wt/ to $EXCLUDE_FILE\"
+    else
+        echo \"$wt/ already in exclude\"
+    fi
+done
 """
