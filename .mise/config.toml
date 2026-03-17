@@ -118,14 +118,18 @@ echo "Trusting main config..."
 echo "Hiding $MNP_NAME and worktrees in $TARGET_DIR/.git/info/exclude..."
 mkdir -p "$TARGET_DIR/.git/info"
 EXCLUDE_FILE="$TARGET_DIR/.git/info/exclude"
-if ! grep -q "^$MNP_NAME/$" "$EXCLUDE_FILE" 2>/dev/null; then
-    echo "$MNP_NAME/" >> "$EXCLUDE_FILE"
+if [ -f "$EXCLUDE_FILE" ]; then
+    grep -v "^$MNP_NAME/$" "$EXCLUDE_FILE" > "$EXCLUDE_FILE.tmp" || true
+    for wt in "${WORKTREES[@]}"; do
+        grep -v "^$wt/$" "$EXCLUDE_FILE.tmp" > "$EXCLUDE_FILE.tmp2" || true
+        mv "$EXCLUDE_FILE.tmp2" "$EXCLUDE_FILE.tmp"
+    done
+    mv "$EXCLUDE_FILE.tmp" "$EXCLUDE_FILE"
 fi
 
+echo "$MNP_NAME/" >> "$EXCLUDE_FILE"
 for wt in "${WORKTREES[@]}"; do
-    if ! grep -q "^$wt/$" "$EXCLUDE_FILE" 2>/dev/null; then
-        echo "$wt/" >> "$EXCLUDE_FILE"
-    fi
+    echo "$wt/" >> "$EXCLUDE_FILE"
 done
 
 echo "Done! The project is ready."
@@ -216,7 +220,7 @@ eval "WORKTREES=(${MISE_VAR_WORKTREE:-mise})"
 for wt in "${WORKTREES[@]}"; do
     if git -C "$TARGET_DIR/$MNP_NAME" worktree list 2>/dev/null | grep -q "${wt}"; then
         echo "Removing worktree link $wt from $TARGET_DIR..."
-        git -C "$TARGET_DIR/$MNP_NAME" worktree remove "../${wt}" --force
+        git -C "$TARGET_DIR/$MNP_NAME" worktree remove "../${wt}" --force || true
     fi
 done
 
@@ -252,6 +256,7 @@ echo "Cleanup complete."
 quiet = true
 description = "Hide mise-non-place from project git via .git/info/exclude"
 run = """
+#!/usr/bin/env bash
 set -euo pipefail
 
 # Find project root (one level up from where .mise-non-place is cloned)
@@ -263,19 +268,20 @@ eval "WORKTREES=(${MISE_VAR_WORKTREE:-mise})"
 mkdir -p \"$TARGET_DIR/.git/info\"
 EXCLUDE_FILE=\"$TARGET_DIR/.git/info/exclude\"
 
-if ! grep -q \"^$MNP_NAME/\" \"$EXCLUDE_FILE\" 2>/dev/null; then
-    echo \"$MNP_NAME/\" >> \"$EXCLUDE_FILE\"
-    echo \"Added $MNP_NAME/ to $EXCLUDE_FILE\"
-else
-    echo \"$MNP_NAME/ already in exclude\"
+if [ -f \"$EXCLUDE_FILE\" ]; then
+    grep -v \"^$MNP_NAME/$\" \"$EXCLUDE_FILE\" > \"$EXCLUDE_FILE.tmp\" || true
+    for wt in \"${WORKTREES[@]}\"; do
+        grep -v \"^$wt/$\" \"$EXCLUDE_FILE.tmp\" > \"$EXCLUDE_FILE.tmp2\" || true
+        mv \"$EXCLUDE_FILE.tmp2\" \"$EXCLUDE_FILE.tmp\"
+    done
+    mv \"$EXCLUDE_FILE.tmp\" \"$EXCLUDE_FILE\"
 fi
 
-for wt in "${WORKTREES[@]}"; do
-    if ! grep -q \"^$wt/\" \"$EXCLUDE_FILE\" 2>/dev/null; then
-        echo \"$wt/\" >> \"$EXCLUDE_FILE\"
-        echo \"Added $wt/ to $EXCLUDE_FILE\"
-    else
-        echo \"$wt/ already in exclude\"
-    fi
+echo \"$MNP_NAME/\" >> \"$EXCLUDE_FILE\"
+echo \"Added $MNP_NAME/ to $EXCLUDE_FILE\"
+
+for wt in \"${WORKTREES[@]}\"; do
+    echo \"$wt/\" >> \"$EXCLUDE_FILE\"
+    echo \"Added $wt/ to $EXCLUDE_FILE\"
 done
 """
