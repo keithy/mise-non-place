@@ -48,22 +48,26 @@ From your `mise-non-place` clone, you can safely and instantly inject a `mise` e
 
 ### Add to a project
 
-Run the `new` task and point it at the directory containing your target projects (e.g., `~/code`):
+From your `mise-non-place` clone, run one of the `new:*` tasks and point it at the directory containing your target projects (e.g., `~/code`):
 
 ```bash
-mise run new ~/code
+mise run new:mise-go ~/code
+# or
+mise run new:mise-rust ~/code
+# or
+mise run new:empty ~/code
 ```
 
 This will:
 1. Scan the provided directory (`~/code`) for other git repositories.
 2. Prompt you to select a target project.
 3. Automatically clone `.mise-non-place/` into the target project.
-4. Create a specific branch for that project (e.g. `mise/<project>`).
-5. Create a visible `mise/` worktree linked to that branch.
+4. Create a specific branch for that project (e.g. `mise/<project>`) explicitly branched from the template (e.g. `template/mise-go`).
+5. Create a visible worktree linked to that branch (e.g. `mise/`).
 6. Automatically trust the generated `mise` configurations.
 7. Auto-hide the directories in the target project's `.git/info/exclude`.
 
-*Note: Because every injected project contains a full clone in `.mise-non-place/`, you can run `mise run new` from inside any seeded project to infect new projects!*
+*Note: Because every injected project contains a full clone in `.mise-non-place/`, you can run `mise run new:*` from inside any seeded project to infect new projects!*
 
 ### Working with your configurations
 
@@ -97,16 +101,18 @@ mise run remove /path/to/the/target/project
 
 As long as your changes were pushed, this safely unlinks the worktree, removes the hidden directories, and cleans up the `.git/info/exclude`. Your configuration branches remain safely untouched in your central repository!
 
-## Advanced Configuration
+## Creating Custom Templates
 
-You can customize the names of the generated worktree directories by editing the `[vars]` block in your `.mise/config.toml`. 
+`mise-non-place` uses a pure branch-based template system.
 
-It even supports multiple worktrees! Just provide a space-separated string:
+To create a new template (e.g. for Python):
+1. Create a branch named `template/mise-python`.
+2. Add your pure, project-specific configuration to it (e.g., `.mise/config.toml`, `.mise.toml`).
+3. Push it to your central repository.
+4. Add a new task in your main branch's `config.toml`:
 
 ```toml
-[vars]
-# Creates two active worktrees in the target project: `mise/` and `mise-test/`
-worktree = "mise mise-test"
+[tasks."new:mise-python"]
+description = "Inject the Python template"
+run = "mise run _inject \"${1:-../..}\" \"template/mise-python\" \"mise\""
 ```
-
-Each folder generated from the array gets its own dedicated branch (e.g., `mise/<project>` and `mise-test/<project>`), giving you perfect isolation between different environments or configurations in the same target project!
