@@ -107,8 +107,20 @@ if git -C "$TARGET_MNP" show-ref --verify --quiet "refs/remotes/origin/$branch_n
     git -C "$TARGET_MNP" worktree add "../$WORKTREE_NAME" "$branch_name"
 else
     echo "Creating new branch $branch_name from $TEMPLATE..."
-    # Create branch first
-    git -C "$TARGET_MNP" branch "$branch_name" "$TEMPLATE"
+    # Find which remote has the template
+    TEMPLATE_REF=""
+    for remote in origin upstream; do
+        if git -C "$TARGET_MNP" show-ref --verify --quiet "refs/remotes/$remote/$TEMPLATE"; then
+            TEMPLATE_REF="$remote/$TEMPLATE"
+            break
+        fi
+    done
+    if [ -z "$TEMPLATE_REF" ]; then
+        echo "Error: Template $TEMPLATE not found" >&2
+        exit 1
+    fi
+    # Create branch from remote ref
+    git -C "$TARGET_MNP" branch "$branch_name" "$TEMPLATE_REF"
     # Then add worktree with the branch
     git -C "$TARGET_MNP" worktree add "../$WORKTREE_NAME" "$branch_name"
 fi
