@@ -8,6 +8,9 @@ describe "mise-non-place CLI tasks" && {
   export MNP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
   export MNP_NAME="$(basename "$MNP_DIR")"
   
+  # Cleanup any previous pick config
+  git config --local --unset "${MNP_NAME}.picked" 2>/dev/null || true
+  
   # Setup
   rm -rf "$TEST_DIR"
   mkdir -p "$TEST_DIR/dummy-project"
@@ -146,3 +149,6 @@ describe "mise-non-place CLI tasks" && {
     }
   }
 }
+
+# Cleanup
+git config --local --unset "${MNP_NAME}.picked" 2>/dev/null || true
