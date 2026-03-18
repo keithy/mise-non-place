@@ -22,12 +22,17 @@ fi
 WORKTREE_NAME="${1:-}"
 TEMPLATE="${2:-}"
 
+# Get defaults from config
+DEFAULT_TEMPLATE="${MISE_TEMPLATE:-template/empty}"
+
 # If no args, prompt interactively
 if [ -z "$WORKTREE_NAME" ]; then
     read -p "Worktree name (default: mise): " WORKTREE_NAME
     WORKTREE_NAME="${WORKTREE_NAME:-mise}"
-    read -p "Template branch (default: template/empty): " TEMPLATE
-    TEMPLATE="${TEMPLATE:-template/empty}"
+    read -p "Template branch (default: $DEFAULT_TEMPLATE): " TEMPLATE
+    TEMPLATE="${TEMPLATE:-$DEFAULT_TEMPLATE}"
+elif [ -z "$TEMPLATE" ]; then
+    TEMPLATE="$DEFAULT_TEMPLATE"
 fi
 
 TARGET_DIR="$(realpath "$TARGET_DIR")"
@@ -77,8 +82,8 @@ if git -C "$TARGET_MNP" show-ref --verify --quiet "refs/remotes/origin/$branch_n
     echo "Branch $branch_name exists on origin. Using it."
     git -C "$TARGET_MNP" worktree add "../$WORKTREE_NAME" "$branch_name"
 else
-    echo "Creating new branch $branch_name..."
-    git -C "$TARGET_MNP" worktree add -b "$branch_name" "../$WORKTREE_NAME"
+    echo "Creating new branch $branch_name from $TEMPLATE..."
+    git -C "$TARGET_MNP" worktree add -b "$branch_name" "../$WORKTREE_NAME" "$TEMPLATE"
 fi
 
 echo "Trusting mise configuration..."
