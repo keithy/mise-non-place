@@ -1,0 +1,5 @@
+#!/bin/bash
+#MISE description="List tracked PRs"
+set -e
+cd "$MISE_PROJECT_ROOT"
+exec "$MISE_PROJECT_ROOT/mise/tasks-git/git/track-prs.sh" list

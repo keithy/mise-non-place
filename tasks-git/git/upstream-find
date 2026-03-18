@@ -1,0 +1,43 @@
+#!/bin/bash
+#MISE description="Find and add upstream remote"
+set -e
+
+cd "$MISE_PROJECT_ROOT"
+
+# Allow override via arg or env
+UPSTREAM_URL="${1:-${UPSTREAM_REPO_URL:-}}"
+
+# Check if upstream already exists
+if git remote get-url upstream &>/dev/null; then
+    echo "upstream already configured: $(git remote get-url upstream)"
+    exit 0
+fi
+
+# Detect from origin if not provided
+if [ -z "$UPSTREAM_URL" ]; then
+    origin_url=$(git remote get-url origin 2>/dev/null || true)
+    if [ -n "$origin_url" ]; then
+        # Try to detect if this is a fork using GitHub API
+        # Extract owner/repo from origin URL
+        owner_repo=$(echo "$origin_url" | sed -E 's|.*github\.com/||' | sed 's|\.git$||')
+        if [ -n "$owner_repo" ]; then
+            # Check if it's a fork with a parent
+            parent=$(gh api "repos/$owner_repo" --jq '.parent.full_name' 2>/dev/null || true)
+            if [ -n "$parent" ]; then
+                UPSTREAM_URL="https://github.com/$parent.git"
+                echo "Detected fork, using parent: $parent"
+            else
+                echo "Not a fork - please provide upstream URL as argument or set UPSTREAM_REPO_URL"
+                exit 1
+            fi
+        fi
+    fi
+fi
+
+if [ -z "$UPSTREAM_URL" ]; then
+    echo "Error: Provide upstream URL as argument or set UPSTREAM_REPO_URL"
+    exit 1
+fi
+
+git remote add upstream "$UPSTREAM_URL"
+echo "Added upstream: $UPSTREAM_URL"
