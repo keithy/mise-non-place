@@ -23,7 +23,7 @@ WORKTREE_NAME="${1:-}"
 TEMPLATE="${2:-}"
 
 # Get defaults from config
-DEFAULT_TEMPLATE="${MISE_TEMPLATE:-template/empty}"
+DEFAULT_TEMPLATE="${MISE_TEMPLATE_DEFAULT:-template/empty}"
 
 # If no args, prompt interactively
 if [ -z "$WORKTREE_NAME" ]; then
@@ -67,6 +67,10 @@ if [ ! -d "$TARGET_MNP" ]; then
 else
     echo "Using existing .$MNP_NAME in $TARGET_DIR"
 fi
+
+# Fetch all branches to ensure template branches are available
+echo "Fetching all branches..."
+git -C "$TARGET_MNP" fetch --all
 
 # Update pick to point to the new project
 git config --local "${MNP_NAME}.picked" "$TARGET_DIR"
