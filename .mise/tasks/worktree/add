@@ -107,9 +107,10 @@ if git -C "$TARGET_MNP" show-ref --verify --quiet "refs/remotes/origin/$branch_n
     git -C "$TARGET_MNP" worktree add "../$WORKTREE_NAME" "$branch_name"
 else
     echo "Creating new branch $branch_name from $TEMPLATE..."
-    git -C "$TARGET_MNP" worktree add -b "$branch_name" "../$WORKTREE_NAME" "$TEMPLATE"
-    # Checkout the new branch in the worktree
-    git -C "$TARGET_WT" checkout "$branch_name"
+    # Create branch first
+    git -C "$TARGET_MNP" branch "$branch_name" "$TEMPLATE"
+    # Then add worktree with the branch
+    git -C "$TARGET_MNP" worktree add "../$WORKTREE_NAME" "$branch_name"
 fi
 
 echo "Trusting mise configuration..."
