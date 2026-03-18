@@ -72,12 +72,6 @@ else
     echo "Using existing .$MNP_NAME in $TARGET_DIR"
 fi
 
-# Fetch all branches to ensure template branches are available
-echo "Fetching all branches..."
-git -C "$TARGET_MNP" fetch --all
-# Also fetch from upstream if it exists
-git -C "$TARGET_MNP" remote get-url upstream &>/dev/null && git -C "$TARGET_MNP" fetch upstream
-
 # Update pick to point to the new project
 git config --local "${MNP_NAME}.picked" "$TARGET_DIR"
 
@@ -88,7 +82,7 @@ branch_name="${branch_name//\/\./\/%2E}"
 branch_name="${branch_name// /%20}"
 
 echo "Creating worktree '$WORKTREE_NAME'..."
-# Check if template branch exists in any remote
+# Check if template branch exists in any remote, fetch if not
 TEMPLATE_EXISTS=false
 for remote in origin upstream; do
     if git -C "$TARGET_MNP" show-ref --verify --quiet "refs/remotes/$remote/$TEMPLATE"; then
@@ -96,6 +90,18 @@ for remote in origin upstream; do
         break
     fi
 done
+
+if ! $TEMPLATE_EXISTS; then
+    echo "Fetching template branch $TEMPLATE..."
+    for remote in origin upstream; do
+        if git -C "$TARGET_MNP" fetch "$remote" "+refs/heads/$TEMPLATE:refs/remotes/$remote/$TEMPLATE" 2>&1; then
+            if git -C "$TARGET_MNP" show-ref --verify --quiet "refs/remotes/$remote/$TEMPLATE"; then
+                TEMPLATE_EXISTS=true
+                break
+            fi
+        fi
+    done
+fi
 
 if ! $TEMPLATE_EXISTS; then
     echo "Error: Template branch '$TEMPLATE' not found." >&2

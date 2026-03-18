@@ -64,6 +64,7 @@ describe "mise-non-place CLI tasks" && {
   context "when adding a second worktree with encoding" && {
     
     # Add a worktree with a leading dot (needs encoding)
+    cd "$MNP_DIR"
     mise run worktree:add .config
     RESULT=$?
 
