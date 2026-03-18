@@ -22,11 +22,20 @@ This tool is a standalone repository for your local `mise` configurations that i
 3. It then spawns a visible `<worktree>/` directory inside the target project using `git worktree`, checked out to a project-specific branch (e.g., `my-project/mise`).
 4. Both directories are automatically added to the target project's `.git/info/exclude`, making them completely invisible to `git`.
 
-This gives you a dedicated workspace for your configuration that seamlessly blends into any codebase, while sharing a single git database across all your projects!
+This gives you a dedicated workspace for your favourite tooling that seamlessly blends into any codebase, sharing a single git database of your tooling configuration across all your projects!
 
 ### Reusable Pattern
 
-This same approach works for other shared resources aka:
+Mise-en-place can install more than one worktree for other purposes:
+
+- mise run worktree:add mise       mise/go-tools (and not just `./mise`)
+- mise run worktree:add migrations template/empty 
+- mise run worktree:add my-notes   template/empty 
+
+### White Label
+
+The name `mise-non-place` is not hard coded, so it can be easily repurposed for other things,
+just clone or fork it under a different name e.g:
 - `migrations-non-place` - database migrations for multiple projects
 - `scripts-non-place` - shared scripts across projects
 - `config-non-place` - any configuration you want to share
@@ -58,12 +67,12 @@ From your `mise-non-place` clone, you can inject mise configurations into any pr
 First, pick the target project:
 
 ```bash
-mise run pick /path/to/project
+mise run pick /path/to/a_project
 # or interactively:
 mise run pick /search/dir
 ```
 
-This stores the selection in git config (`mise-non-place.picked`).
+This stores the chosen selection in git config (`mise-non-place.picked`).
 
 ### Add a worktree
 
@@ -74,8 +83,8 @@ Then add worktrees to that project:
 mise run worktree:add
 
 # With args: <worktree_name> [<template>]
-mise run worktree:add scripts
-mise run worktree:add scripts template/empty
+mise run worktree:add mise mise/go-tools
+mise run worktree:add mise template/empty
 ```
 
 This will:
@@ -84,7 +93,7 @@ This will:
 3. Create a branch `<project>/<worktree_name>` from the template
 4. Trust the mise configuration
 5. Add both directories to `.git/info/exclude`
-6. Update the new `.mise-non-place` such that `pick` points to the new project
+6. Update the new `.mise-non-place` such that its `pick` also points to the new project
 
 ### Status
 
@@ -110,7 +119,7 @@ Once injected, `cd` into the worktree:
 ```bash
 cd /path/to/target/project/mise
 # Add tasks or edit config.toml
-git add .mise/config.toml
+git add config.toml
 git commit -m "Add new build tasks"
 git push origin HEAD
 ```
@@ -131,18 +140,18 @@ Create a branch for your template:
 
 ```bash
 # From your mise-non-place clone
-git checkout -b template/jdk
-# Add your config to .mise/config.toml
-git add .mise/config.toml
+git checkout -b template/empty
+# Add your config to config.toml
+git add config.toml
 git commit -m "Add JDK template"
-git push origin template/jdk
+git push origin mise/jdk
 git checkout main
 ```
 
 Then use it when creating worktrees:
 
 ```bash
-mise run worktree:add mise template/jdk
+mise run worktree:add mise mise/jdk
 ```
 
 ### Specialized Tasks
@@ -150,8 +159,8 @@ mise run worktree:add mise template/jdk
 For specialized setups, create task files in `.mise/tasks/worktree/`:
 
 ```bash
-# .mise/tasks/worktree/mise-go
-mise run worktree:add mise template/mise-go
+# .mise/tasks/worktree/add-mise-go
+mise run worktree:add mise mise/go
 ```
 
-Run with `mise run worktree:mise-go`.
+Run with `mise run worktree:add-mise-go`.
