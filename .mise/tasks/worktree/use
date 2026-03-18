@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-#MISE description="Add a worktree to a picked project"
+#MISE description="Add a worktree using an existing branch"
 #MISE raw="true"
 
-# worktree/add - Add a worktree to a project
+# worktree/use - Add a worktree using an existing branch
 # Usage:
-#   mise run worktree:add [<worktree_name> [<template>]]
+#   mise run worktree:use [<worktree_name> [<branch>]]
 
 set -euo pipefail
 
@@ -18,16 +18,20 @@ if [ -z "$TARGET_DIR" ]; then
     exit 1
 fi
 
-# Parse args: [<worktree_name> [<template>]]
+# Parse args: [<worktree_name> [<branch>]]
 WORKTREE_NAME="${1:-}"
-TEMPLATE="${2:-}"
+BRANCH="${2:-}"
 
 # If no args, prompt interactively
 if [ -z "$WORKTREE_NAME" ]; then
     read -p "Worktree name (default: mise): " WORKTREE_NAME
     WORKTREE_NAME="${WORKTREE_NAME:-mise}"
-    read -p "Template branch (default: template/empty): " TEMPLATE
-    TEMPLATE="${TEMPLATE:-template/empty}"
+    read -p "Branch to use: " BRANCH
+fi
+
+if [ -z "$BRANCH" ]; then
+    echo "Error: Branch is required. Usage: mise run worktree:use <worktree_name> <branch>" >&2
+    exit 1
 fi
 
 TARGET_DIR="$(realpath "$TARGET_DIR")"
@@ -51,7 +55,7 @@ if [ -d "$TARGET_WT" ]; then
 fi
 
 echo "Injecting into: $TARGET_DIR"
-echo "Template: $TEMPLATE, Worktree: $WORKTREE_NAME"
+echo "Branch: $BRANCH, Worktree: $WORKTREE_NAME"
 echo ""
 
 # Clone if not already present
@@ -68,18 +72,24 @@ git config --local "${MNP_NAME}.picked" "$TARGET_DIR"
 
 echo "Updated pick to: $TARGET_DIR"
 
-branch_name="$(basename "$TARGET_DIR")/$WORKTREE_NAME"
-branch_name="${branch_name//\/\./\/%2E}"
-branch_name="${branch_name// /%20}"
-
-echo "Creating worktree '$WORKTREE_NAME'..."
-if git -C "$TARGET_MNP" show-ref --verify --quiet "refs/remotes/origin/$branch_name"; then
-    echo "Branch $branch_name exists on origin. Using it."
-    git -C "$TARGET_MNP" worktree add "../$WORKTREE_NAME" "$branch_name"
-else
-    echo "Creating new branch $branch_name..."
-    git -C "$TARGET_MNP" worktree add -b "$branch_name" "../$WORKTREE_NAME"
+# Check if branch exists locally or remotely
+if ! git -C "$TARGET_MNP" show-ref --verify --quiet "refs/heads/$BRANCH" && \
+   ! git -C "$TARGET_MNP" show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+    echo "Error: Branch '$BRANCH' does not exist." >&2
+    exit 1
 fi
+
+echo "Creating worktree '$WORKTREE_NAME' using branch '$BRANCH'..."
+git -C "$TARGET_MNP" worktree add "../$WORKTREE_NAME" "$BRANCH"
+
+# Make worktree read-only
+chmod -R -w "$TARGET_WT"
+
+echo ""
+echo "Note: This worktree is read-only."
+echo "Maintainers: run 'chmod -R +w $TARGET_WT' to make writable."
+
+echo "Set worktree '$WORKTREE_NAME' as read-only"
 
 echo "Trusting mise configuration..."
 (cd "$TARGET_DIR/$WORKTREE_NAME" && mise trust)
