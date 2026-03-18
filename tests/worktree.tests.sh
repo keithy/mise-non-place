@@ -53,6 +53,12 @@ describe "mise-non-place CLI tasks" && {
       [[ "$PICKED" == "$TEST_DIR/dummy-project" ]]
       should_succeed
     }
+
+    it "creates worktree branch, not template branch" && {
+      cd "$TEST_DIR/dummy-project/mise"
+      [[ "$(git rev-parse --abbrev-ref HEAD)" == "dummy-project/mise" ]]
+      should_succeed
+    }
   }
   
   context "when adding a second worktree with encoding" && {
