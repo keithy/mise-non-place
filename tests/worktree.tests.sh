@@ -81,6 +81,12 @@ describe "mise-non-place CLI tasks" && {
       git -C "$TEST_DIR/dummy-project/.$MNP_NAME" branch | grep -q "dummy-project/%2Econfig"
       should_succeed
     }
+
+    it "branch tracks itself, not template" && {
+      TRACKING="$(git -C "$TEST_DIR/dummy-project/.$MNP_NAME" config branch.dummy-project/%2Econfig.remote)"
+      [[ "$TRACKING" == "." ]]
+      should_succeed
+    }
   }
   
   context "when removing a specific worktree" && {

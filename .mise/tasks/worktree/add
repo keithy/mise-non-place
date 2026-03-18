@@ -127,6 +127,9 @@ else
     fi
     # Create branch from remote ref
     git -C "$TARGET_MNP" branch "$branch_name" "$TEMPLATE_REF"
+    # Make branch track itself (set remote to local)
+    git -C "$TARGET_MNP" config "branch.$branch_name.remote" .
+    git -C "$TARGET_MNP" config "branch.$branch_name.merge" "refs/heads/$branch_name"
     # Then add worktree with the branch
     git -C "$TARGET_MNP" worktree add "../$WORKTREE_NAME" "$branch_name"
 fi
