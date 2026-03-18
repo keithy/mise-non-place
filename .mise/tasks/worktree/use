@@ -100,7 +100,7 @@ mkdir -p "$TARGET_DIR/.git/info"
 exclude_file="$TARGET_DIR/.git/info/exclude"
 
 for f in ".$MNP_NAME" "$WORKTREE_NAME"; do
-    grep -qF "$f/" "$exclude_file" 2>/dev/null || echo "$f/" >> "$exclude_file"
+    grep -qFx "$f/" "$exclude_file" 2>/dev/null || echo "$f/" >> "$exclude_file"
 done
 
 echo "Done! cd into $TARGET_DIR/$WORKTREE_NAME"
