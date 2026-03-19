@@ -1,0 +1,18 @@
+#!/bin/bash
+#MISE description="Open GitHub PRs list in browser"
+set -e
+cd "$MISE_PROJECT_ROOT"
+
+# Detect upstream repo from git remote
+upstream_url=$(git remote get-url upstream 2>/dev/null || true)
+if [[ -z "$upstream_url" ]]; then
+    echo "No upstream remote configured. Run 'mise run git:upstream-find' first."
+    exit 1
+fi
+
+# Extract owner/repo from URL
+repo_ref=$(echo "$upstream_url" | sed -E 's|.*github\.com/||' | sed 's|\.git$||')
+url="https://github.com/$repo_ref/pulls"
+
+# Use gh pr list --web
+gh pr list -R "$repo_ref" --web || echo "$url"
