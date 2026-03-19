@@ -1,5 +1,60 @@
 #!/bin/bash
-#MISE description="Merge upstream PRs"
+#MISE description="Create branch with PRs merged (default: want)"
 set -e
+
 cd "$MISE_PROJECT_ROOT"
-exec "$MISE_PROJECT_ROOT/mise/tasks-git/git/pull-prs"
+
+# Get argument or default to want
+LIST_NAME="${1:-want}"
+
+# Handle symbolic lists
+case "$LIST_NAME" in
+    like) LIST_NAME="want" ;;
+esac
+
+JSON_FILE="$MISE_PROJECT_ROOT/${DEV_DATA_DIR}/${LIST_NAME}.json"
+
+# Check if JSON file exists
+if [[ ! -f "$JSON_FILE" ]]; then
+    echo "Error: $JSON_FILE not found"
+    exit 1
+fi
+
+# Get PRs from JSON
+prs=$(jq -r '.[] | .id' "$JSON_FILE" | tr '\n' '+' | sed 's/+$//')
+
+if [[ -z "$prs" ]]; then
+    echo "No PRs found in $JSON_FILE"
+    exit 1
+fi
+
+# Form branch name
+branch_name="main+$prs"
+echo "Will create branch: $branch_name"
+
+# Check if branch already exists
+if git rev-parse --verify "$branch_name" >/dev/null 2>&1; then
+    echo "Branch $branch_name already exists. Checking out..."
+    git checkout "$branch_name"
+else
+    # Create new branch from main
+    echo "Creating branch $branch_name from main..."
+    git checkout -b "$branch_name" main
+fi
+
+# Ensure main is up to date
+echo "Updating main from upstream..."
+git fetch upstream
+git merge upstream/main --no-edit || true
+
+# Merge each PR in order
+for pr in $(echo "$prs" | tr '+' ' '); do
+    echo "Merging PR #$pr..."
+    git fetch upstream "pull/$pr/head"
+    git merge "FETCH_HEAD" --no-edit -m "Merge PR #$pr" || {
+        echo "Conflict merging PR #$pr - resolve manually"
+        exit 1
+    }
+done
+
+echo "Build complete: $branch_name with PRs: $prs"
