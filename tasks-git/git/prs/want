@@ -4,7 +4,7 @@ set -e
 cd "$MISE_PROJECT_ROOT"
 
 TASK_NAME="want"
-PR_LIST_FILE="$MISE_PROJECT_ROOT/${MISE_DATA_DIR}/${TASK_NAME}.md"
+PR_LIST_FILE="$MISE_PROJECT_ROOT/${DEV_DATA_DIR}/${TASK_NAME}.md"
 
 # Ensure file exists with header
 init_file() {
