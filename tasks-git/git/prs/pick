@@ -1,5 +1,0 @@
-#!/bin/bash
-#MISE description="Interactive PR picker"
-set -e
-cd "$MISE_PROJECT_ROOT"
-exec "$MISE_PROJECT_ROOT/mise/tasks-git/git/track-prs.sh" pick
