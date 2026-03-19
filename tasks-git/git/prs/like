@@ -3,42 +3,76 @@
 set -e
 cd "$MISE_PROJECT_ROOT"
 
-TASK_NAME="like"
-PR_LIST_FILE="$MISE_PROJECT_ROOT/${DEV_DATA_DIR}/${TASK_NAME}.md"
+TASK_NAME="${MISE_TASK_NAME##*:}"
+MD_FILE="$MISE_PROJECT_ROOT/${DEV_DATA_DIR}/${TASK_NAME}.md"
+JSON_FILE="$MISE_PROJECT_ROOT/${DEV_DATA_DIR}/${TASK_NAME}.json"
 
-# Ensure file exists with header
-init_file() {
-    if [[ ! -f "$PR_LIST_FILE" ]]; then
-        cat > "$PR_LIST_FILE" << 'EOF'
+# Ensure both files exist
+init_files() {
+    if [[ ! -f "$MD_FILE" ]]; then
+        cat > "$MD_FILE" << 'EOF'
 # Interested PRs
 
 | PR | Description | Status |
 |----|-------------|--------|
-
 EOF
+    fi
+    if [[ ! -f "$JSON_FILE" ]]; then
+        echo "[]" > "$JSON_FILE"
     fi
 }
 
-# List PRs
+# List PRs (from JSON)
 cmd_list() {
-    init_file
-    local count=0
+    cmd_sync
     echo ""
-    while IFS= read -r line; do
-        # Skip header and separator
-        if [[ "$line" =~ ^\# ]] || [[ "$line" =~ ^\|--- ]] || [[ "$line" =~ ^\|[[:space:]]PR ]]; then
-            continue
-        fi
-        # Skip empty lines but count table rows
-        if [[ "$line" =~ ^\| ]]; then
-            count=$((count + 1))
-            echo "  $line"
-        fi
-    done < "$PR_LIST_FILE"
-    if [[ $count -eq 0 ]]; then
+    # Read JSON and display
+    if [[ -s "$JSON_FILE" ]] && [[ $(cat "$JSON_FILE" | tr -d ' ') != "[]" ]]; then
+        cat "$JSON_FILE" | jq -r '.[] | "  #\(.id) | \(.description) | \(.status)"' 2>/dev/null || cat "$MD_FILE" | tail -n +5 | grep "^|"
+    else
         echo "No interested PRs. Use +<num> to add."
     fi
     echo ""
+}
+
+# Sync PR status from GitHub
+cmd_sync() {
+    init_files
+    
+    # Check if jq can parse JSON
+    if ! jq -e '.' "$JSON_FILE" >/dev/null 2>&1; then
+        echo "Invalid JSON, cannot sync"
+        return
+    fi
+    
+    local count=0
+    
+    # Get upstream repo
+    upstream_url=$(git remote get-url upstream 2>/dev/null || true)
+    repo_ref=$(echo "$upstream_url" | sed -E 's|.*github\.com/||' | sed 's|\.git$||')
+    
+    # Get all PRs and update
+    local pr_ids
+    pr_ids=$(jq -r '.[] | .id' "$JSON_FILE")
+    
+    for pr_id in $pr_ids; do
+        local status
+        status=$(gh pr view "$pr_id" -R "$repo_ref" --json state -q '.state' 2>/dev/null) || status="unknown"
+        case "$status" in
+            MERGED) status="merged" ;;
+            CLOSED) status="closed" ;;
+            OPEN) status="open" ;;
+        esac
+        echo "PR #$pr_id: $status"
+        
+        # Update JSON
+        local tmp_update
+        tmp_update=$(mktemp)
+        jq --arg id "$pr_id" --arg status "$status" 'map(if .id == $id then .status = $status else . end)' "$JSON_FILE" > "$tmp_update" && mv "$tmp_update" "$JSON_FILE"
+        count=$((count + 1))
+    done
+    
+    echo "Synced $count PRs from GitHub"
 }
 
 # Add PR
@@ -46,10 +80,10 @@ cmd_add() {
     local pr_num="$1"
     [[ -z "$pr_num" ]] && { echo "Usage: +<num>"; exit 1; }
     
-    init_file
+    init_files
     
-    # Check if already exists
-    if grep -q "#$pr_num " "$PR_LIST_FILE"; then
+    # Check if already exists in JSON
+    if grep -q "\"id\":.*\"$pr_num\"" "$JSON_FILE"; then
         echo "PR #$pr_num already in interested list"
         return
     fi
@@ -61,8 +95,14 @@ cmd_add() {
     
     title=$(gh pr view "$pr_num" -R "$repo_ref" --json title -q '.title' 2>/dev/null) || title="Unknown"
     
-    # Append to file before the last closing |
-    echo "| #$pr_num | $title | open |" >> "$PR_LIST_FILE"
+    # Add to JSON
+    local tmp_json
+    tmp_json=$(mktemp)
+    jq --arg id "$pr_num" --arg desc "$title" --arg status "open" '. += [{"id": $id, "description": $desc, "status": $status}]' "$JSON_FILE" > "$tmp_json" && mv "$tmp_json" "$JSON_FILE"
+    
+    # Add to MD
+    echo "| #$pr_num | $title | open |" >> "$MD_FILE"
+    
     echo "Added #$pr_num to interested: $title"
 }
 
@@ -71,10 +111,15 @@ cmd_remove() {
     local pr_num="$1"
     [[ -z "$pr_num" ]] && { echo "Usage: -<num>"; exit 1; }
     
-    init_file
+    init_files
     
-    if grep -q "#$pr_num " "$PR_LIST_FILE"; then
-        grep -v "#$pr_num " "$PR_LIST_FILE" > "${PR_LIST_FILE}.tmp" && mv "${PR_LIST_FILE}.tmp" "$PR_LIST_FILE"
+    if grep -q "\"id\".*\"$pr_num\"" "$JSON_FILE"; then
+        local tmp_json
+        tmp_json=$(mktemp)
+        jq --arg id "$pr_num" 'map(select(.id != $id))' "$JSON_FILE" > "$tmp_json" && mv "$tmp_json" "$JSON_FILE"
+        
+        grep -v "#$pr_num " "$MD_FILE" > "${MD_FILE}.tmp" && mv "${MD_FILE}.tmp" "$MD_FILE"
+        
         echo "Removed #$pr_num from interested"
     else
         echo "PR #$pr_num not in interested list"
