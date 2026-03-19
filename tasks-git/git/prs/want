@@ -1,0 +1,92 @@
+#!/bin/bash
+#MISE description="Manage PRs to pull (+num to add, -num to remove, or list)"
+set -e
+cd "$MISE_PROJECT_ROOT"
+
+TASK_NAME="want"
+PR_LIST_FILE="$MISE_PROJECT_ROOT/${MISE_DATA_DIR}/${TASK_NAME}.md"
+
+# Ensure file exists with header
+init_file() {
+    if [[ ! -f "$PR_LIST_FILE" ]]; then
+        cat > "$PR_LIST_FILE" << 'EOF'
+# PRs to Pull
+
+| PR | Description | Status |
+|----|-------------|--------|
+
+EOF
+    fi
+}
+
+# List PRs
+cmd_list() {
+    init_file
+    local count=0
+    echo ""
+    while IFS= read -r line; do
+        # Skip header and separator
+        if [[ "$line" =~ ^\# ]] || [[ "$line" =~ ^\|--- ]] || [[ "$line" =~ ^\|[[:space:]]PR ]]; then
+            continue
+        fi
+        # Skip empty lines but count table rows
+        if [[ "$line" =~ ^\| ]]; then
+            count=$((count + 1))
+            echo "  $line"
+        fi
+    done < "$PR_LIST_FILE"
+    if [[ $count -eq 0 ]]; then
+        echo "No PRs to pull. Use +<num> to add."
+    fi
+    echo ""
+}
+
+# Add PR
+cmd_add() {
+    local pr_num="$1"
+    [[ -z "$pr_num" ]] && { echo "Usage: +<num>"; exit 1; }
+    
+    init_file
+    
+    # Check if already exists
+    if grep -q "#$pr_num " "$PR_LIST_FILE"; then
+        echo "PR #$pr_num already in pull list"
+        return
+    fi
+    
+    # Fetch title from GitHub
+    local title
+    upstream_url=$(git remote get-url upstream 2>/dev/null || true)
+    repo_ref=$(echo "$upstream_url" | sed -E 's|.*github\.com/||' | sed 's|\.git$||')
+    
+    title=$(gh pr view "$pr_num" -R "$repo_ref" --json title -q '.title' 2>/dev/null) || title="Unknown"
+    
+    # Append to file
+    echo "| #$pr_num | $title | open |" >> "$PR_LIST_FILE"
+    echo "Added #$pr_num to pull: $title"
+}
+
+# Remove PR
+cmd_remove() {
+    local pr_num="$1"
+    [[ -z "$pr_num" ]] && { echo "Usage: -<num>"; exit 1; }
+    
+    init_file
+    
+    if grep -q "#$pr_num " "$PR_LIST_FILE"; then
+        grep -v "#$pr_num " "$PR_LIST_FILE" > "${PR_LIST_FILE}.tmp" && mv "${PR_LIST_FILE}.tmp" "$PR_LIST_FILE"
+        echo "Removed #$pr_num from pull"
+    else
+        echo "PR #$pr_num not in pull list"
+    fi
+}
+
+# Main
+arg="${1:-}"
+if [[ "$arg" == +* ]]; then
+    cmd_add "${arg#+}"
+elif [[ "$arg" == -* ]]; then
+    cmd_remove "${arg#-}"
+else
+    cmd_list
+fi
