@@ -24,8 +24,10 @@ EOF
 
 # List PRs (from JSON)
 cmd_list() {
-    cmd_sync
+    init_files
+    
     echo ""
+    
     # Read JSON and display
     if [[ -s "$JSON_FILE" ]] && [[ $(cat "$JSON_FILE" | tr -d ' ') != "[]" ]]; then
         cat "$JSON_FILE" | jq -r '.[] | "  #\(.id) | \(.description) | \(.status)"' 2>/dev/null || cat "$MD_FILE" | tail -n +5 | grep "^|"
@@ -33,6 +35,22 @@ cmd_list() {
         echo "No PRs to pull. Use +<num> to add."
     fi
     echo ""
+    
+    # Interactive prompt
+    echo -n "Action (+num add, -num remove, ? sync, Enter to quit): "
+    read -r action
+    
+    if [[ -z "$action" ]]; then
+        return
+    fi
+    
+    # Process action
+    case "$action" in
+        +*) cmd_add "${action#+}" ;;
+        -*) cmd_remove "${action#-}" ;;
+        \?) cmd_sync ;;
+        *) echo "Cancelled" ;;
+    esac
 }
 
 # Sync PR status from GitHub
@@ -128,10 +146,9 @@ cmd_remove() {
 
 # Main
 arg="${1:-}"
-if [[ "$arg" == +* ]]; then
-    cmd_add "${arg#+}"
-elif [[ "$arg" == -* ]]; then
-    cmd_remove "${arg#-}"
-else
-    cmd_list
-fi
+case "$arg" in
+    +*) cmd_add "${arg#+}" ;;
+    -*) cmd_remove "${arg#-}" ;;
+    \?) cmd_sync ;;
+    *) cmd_list ;;
+esac
