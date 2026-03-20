@@ -4,11 +4,15 @@ set -e
 cd "$MISE_PROJECT_ROOT"
 
 TASK_NAME="${MISE_TASK_NAME##*:}"
-MD_FILE="$MISE_PROJECT_ROOT/${DEV_DATA_DIR}/${TASK_NAME}.md"
+MD_FILE="$MISE_PROJECT_ROOT/${DEV_NOTES_DIR}/${TASK_NAME}.md"
 JSON_FILE="$MISE_PROJECT_ROOT/${DEV_DATA_DIR}/${TASK_NAME}.json"
 
 # Ensure both files exist
 init_files() {
+    # Ensure directories exist
+    mkdir -p "$(dirname "$MD_FILE")"
+    mkdir -p "$(dirname "$JSON_FILE")"
+    
     if [[ ! -f "$MD_FILE" ]]; then
         case "$TASK_NAME" in
             like) title="Interested PRs" ;;
