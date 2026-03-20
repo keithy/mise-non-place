@@ -1,34 +1,41 @@
 #!/bin/bash
-#MISE description="Manage PRs to pull (+num to add, -num to remove, or list)"
+#MISE description: Manage a PR list (+num to add, -num to remove, or list)
+#MISE raw: true
 set -e
 cd "$MISE_PROJECT_ROOT"
 
 TASK_NAME="${MISE_TASK_NAME##*:}"
-MD_FILE="$MISE_PROJECT_ROOT/${DEV_NOTES_DIR}/${TASK_NAME}.md"
-JSON_FILE="$MISE_PROJECT_ROOT/${DEV_DATA_DIR}/${TASK_NAME}.json"
+[[ -z "$TASK_NAME" ]] && TASK_NAME="$(basename "$0")"
 
-# Ensure both files exist
+# Get dirs from env or use defaults
+DATA_DIR="${DEV_DATA_DIR:-.mise}"
+NOTES_DIR="${DEV_NOTES_DIR:-$DATA_DIR/notes}"
+
+MD_FILE="$MISE_PROJECT_ROOT/${NOTES_DIR}/${TASK_NAME}.md"
+JSON_FILE="$MISE_PROJECT_ROOT/${DATA_DIR}/${TASK_NAME}.json"
+
+# Ensure directories and files exist
 init_files() {
+    # Get title based on task name
+    case "$TASK_NAME" in
+        like) title="Interested PRs" ;;
+        *)   title="PRs to Pull" ;;
+    esac
+
     # Ensure directories exist
-    mkdir -p "$(dirname "$MD_FILE")"
-    mkdir -p "$(dirname "$JSON_FILE")"
-    
-    if [[ ! -f "$MD_FILE" ]]; then
-        case "$TASK_NAME" in
-            like) title="Interested PRs" ;;
-            *) title="PRs to Pull" ;;
-        esac
-        cat > "$MD_FILE" << EOF
+    mkdir -p "$(dirname "$MD_FILE")" "$(dirname "$JSON_FILE")"
+
+    # Create MD file if missing
+    [[ ! -f "$MD_FILE" ]] && cat > "$MD_FILE" << EOF
 # $title
 
 | PR | Description | Status |
 |----|-------------|--------|
 
 EOF
-    fi
-    if [[ ! -f "$JSON_FILE" ]]; then
-        echo "[]" > "$JSON_FILE"
-    fi
+
+    # Create JSON file if missing
+    [[ ! -f "$JSON_FILE" ]] && echo "[]" > "$JSON_FILE"
 }
 
 # Sync MD from JSON (master)
@@ -38,7 +45,7 @@ json2md() {
     
     case "$TASK_NAME" in
         like) title="Interested PRs" ;;
-        *) title="PRs to Pull" ;;
+        *)   title="PRs to Pull" ;;
     esac
     
     # Write header

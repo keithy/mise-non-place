@@ -1,0 +1,9 @@
+
+# Adopt into your project config
+# Use select task folders to include
+
+# [task_config]
+# includes = [
+#    "./mise/tasks-git",
+# ]
+

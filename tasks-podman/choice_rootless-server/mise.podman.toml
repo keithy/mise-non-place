@@ -1,0 +1,31 @@
+# mise.podman.toml = podman environment settings
+#
+# This is NOT loaded when in <parent>/goclaw/mise/mise.podman.toml
+# move to a parent directory
+# 1) <parent>/goclaw/mise.podman.toml
+
+# Enable via:
+# <parent>/goclaw/.miserc.toml 
+# [env] = "podman"
+
+[shell_alias]
+docker = "podman"
+
+[env]
+DOCKER_CMD="podman"
+PODMAN_COMPOSE_WARNING_LOGS = "false"
+
+# needed for healthcheck support
+BUILDAH_FORMAT = "docker"
+
+# --- OVERIDE PODMAN CONFIGURATION ---
+# To allow podman to be run form anywhere (e.g. podman stats)
+# we copy or symlink these files with our preferred settings
+# to ~/.config/containers
+
+# Default Value (documentation of defaults)
+# CONTAINERS_REGISTRIES_CONF="/etc/containers/registries.conf"
+# Default Value (documentation of defaults)
+# CONTAINERS_STORAGE_CONF="??"
+# Default Value (documentation of defaults)
+# CONTAINERS_CONF="/usr/share/containers/containers.conf"

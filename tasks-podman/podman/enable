@@ -1,0 +1,30 @@
+#!/bin/bash
+#MISE description="Enable podman environment"
+set -euo pipefail
+
+CHOICE="${1:-rootless-server}"
+
+cd "$MISE_TASK_DIRECTORY/../choice_${CHOICE}"
+
+if [ ! -f mise.podman.toml ]; then
+   mv ./mise.podman.toml "${MISE_PROJECT_ROOT}/mise.podman.toml
+fi
+
+if [ ! -f .miserc.toml ]; then
+   mv ./miserc.toml "${MISE_PROJECT_ROOT}/.miserc.toml
+fi
+
+if [ ! -f ~/.config/containers/containers.conf ]; then
+    mkdir -p ~/.config/containers
+    ln -s "$(pwd)/containers.conf" ~/.config/containers/containers.conf
+fi
+
+if [ ! -f ~/.config/containers/registries.conf ]; then
+    mkdir -p ~/.config/containers
+    ln -s "$(pwd)/registries.conf" ~/.config/containers/registries.conf
+fi
+
+if [ ! -f ~/.config/containers/storage.conf ]; then
+    mkdir -p ~/.config/containers
+    ln -s "$(pwd)/storage.conf" ~/.config/containers/storage.conf
+fi

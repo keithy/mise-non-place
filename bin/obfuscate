@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Obfuscate sensitive values - usage: echo "secret" | obfuscate
+
+function _obfuscate() {
+cat << 'EOF'
+   s/(APIKEY_|API_KEY|SECRET|PASSWORD|TOKEN)(.*)=.*/\1\2=***/
+EOF
+}
+
+sed -r "$(_obfuscate)" -
