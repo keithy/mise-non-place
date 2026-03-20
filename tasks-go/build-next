@@ -1,7 +1,0 @@
-#!/bin/bash
-#MISE description="Build picoclaw binary (./build-next/picoclaw)"
-set -e
-
-# Delegate to build-current with different output dir
-script_dir="$(cd "$(dirname "$0")" && pwd)"
-exec "$script_dir/build-current.sh" build-next
