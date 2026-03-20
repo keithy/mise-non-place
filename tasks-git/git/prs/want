@@ -1,6 +1,6 @@
 #!/bin/bash
-#MISE description: Manage a PR list (+num to add, -num to remove, or list)
-#MISE raw: true
+#MISE description="Manage a PR list (+num to add, -num to remove, or list)"
+#MISE raw="true"
 set -e
 cd "$MISE_PROJECT_ROOT"
 
@@ -16,26 +16,14 @@ JSON_FILE="$MISE_PROJECT_ROOT/${DATA_DIR}/${TASK_NAME}.json"
 
 # Ensure directories and files exist
 init_files() {
-    # Get title based on task name
-    case "$TASK_NAME" in
-        like) title="Interested PRs" ;;
-        *)   title="PRs to Pull" ;;
-    esac
-
+    
     # Ensure directories exist
     mkdir -p "$(dirname "$MD_FILE")" "$(dirname "$JSON_FILE")"
 
-    # Create MD file if missing
-    [[ ! -f "$MD_FILE" ]] && cat > "$MD_FILE" << EOF
-# $title
-
-| PR | Description | Status |
-|----|-------------|--------|
-
-EOF
-
     # Create JSON file if missing
     [[ ! -f "$JSON_FILE" ]] && echo "[]" > "$JSON_FILE"
+    
+    :
 }
 
 # Sync MD from JSON (master)
@@ -43,13 +31,8 @@ json2md() {
     local tmp_md
     tmp_md=$(mktemp)
     
-    case "$TASK_NAME" in
-        like) title="Interested PRs" ;;
-        *)   title="PRs to Pull" ;;
-    esac
-    
     # Write header
-    echo "# $title" > "$tmp_md"
+    echo "# PRs" > "$tmp_md"
     echo "" >> "$tmp_md"
     echo "| PR | Description | Status |" >> "$tmp_md"
     echo "|----|-------------|--------|" >> "$tmp_md"
