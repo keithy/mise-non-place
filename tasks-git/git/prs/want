@@ -39,7 +39,7 @@ json2md() {
     echo "" >> "$tmp_md"
     
     # Write data from JSON
-    jq -r '.[] | "| #\(.id) | \(.description) | \(.status) |"' "$JSON_FILE" >> "$tmp_md"
+    jq -r '.[] | "| #\(.id) | \(.title) | \(.status) |"' "$JSON_FILE" >> "$tmp_md"
     
     mv "$tmp_md" "$MD_FILE"
 }
@@ -52,9 +52,9 @@ cmd_list() {
     
     # Read JSON and display
     if [[ -s "$JSON_FILE" ]] && [[ $(cat "$JSON_FILE" | tr -d ' ') != "[]" ]]; then
-        cat "$JSON_FILE" | jq -r '.[] | "  #\(.id) | \(.description) | \(.status)"' 2>/dev/null
+        cat "$JSON_FILE" | jq -r '.[] | "  #\(.id) | \(.title) | \(.status)"' 2>/dev/null
     else
-        echo "No PRs to pull. Use +<num> to add."
+        echo "No PRs in $TASK_NAME list. Use +<num> to add."
     fi
     echo ""
     
@@ -97,7 +97,7 @@ cmd_sync() {
     
     for pr_id in $pr_ids; do
         local description
-        description=$(jq -r --arg id "$pr_id" '.[] | select(.id == $id) | .description' "$JSON_FILE")
+        description=$(jq -r --arg id "$pr_id" '.[] | select(.id == $id) | .title' "$JSON_FILE")
         
         local status
         status=$(gh pr view "$pr_id" -R "$repo_ref" --json state -q '.state' 2>/dev/null) || status="unknown"
@@ -131,7 +131,7 @@ cmd_add() {
     
     # Check if already exists in JSON
     if jq -e --arg id "$pr_num" '.[] | select(.id == $id)' "$JSON_FILE" >/dev/null 2>&1; then
-        echo "PR #$pr_num already in pull list"
+        echo "PR #$pr_num already in $TASK_NAME list"
         return
     fi
     
@@ -145,12 +145,12 @@ cmd_add() {
     # Add to JSON
     local tmp_json
     tmp_json=$(mktemp)
-    jq --arg id "$pr_num" --arg desc "$title" --arg status "open" '. += [{"id": $id, "description": $desc, "status": $status}]' "$JSON_FILE" > "$tmp_json" && mv "$tmp_json" "$JSON_FILE"
+    jq --arg id "$pr_num" --arg title "$title" --arg status "open" '. += [{"id": $id, "title": $title, "status": $status}]' "$JSON_FILE" > "$tmp_json" && mv "$tmp_json" "$JSON_FILE"
     
     # Sync MD from JSON
     json2md
     
-    echo "Added #$pr_num to pull: $title"
+    echo "Added #$pr_num to $TASK_NAME list: $title"
 }
 
 # Remove PR
@@ -168,9 +168,9 @@ cmd_remove() {
         # Sync MD from JSON
         json2md
         
-        echo "Removed #$pr_num from pull"
+        echo "Removed #$pr_num from $TASK_NAME list"
     else
-        echo "PR #$pr_num not in pull list"
+        echo "PR #$pr_num not in $TASK_NAME list"
     fi
 }
 
