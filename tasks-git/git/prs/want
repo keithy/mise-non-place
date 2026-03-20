@@ -10,16 +10,44 @@ JSON_FILE="$MISE_PROJECT_ROOT/${DEV_DATA_DIR}/${TASK_NAME}.json"
 # Ensure both files exist
 init_files() {
     if [[ ! -f "$MD_FILE" ]]; then
-        cat > "$MD_FILE" << 'EOF'
-# PRs to Pull
+        case "$TASK_NAME" in
+            like) title="Interested PRs" ;;
+            *) title="PRs to Pull" ;;
+        esac
+        cat > "$MD_FILE" << EOF
+# $title
 
 | PR | Description | Status |
 |----|-------------|--------|
+
 EOF
     fi
     if [[ ! -f "$JSON_FILE" ]]; then
         echo "[]" > "$JSON_FILE"
     fi
+}
+
+# Sync MD from JSON (master)
+json2md() {
+    local tmp_md
+    tmp_md=$(mktemp)
+    
+    case "$TASK_NAME" in
+        like) title="Interested PRs" ;;
+        *) title="PRs to Pull" ;;
+    esac
+    
+    # Write header
+    echo "# $title" > "$tmp_md"
+    echo "" >> "$tmp_md"
+    echo "| PR | Description | Status |" >> "$tmp_md"
+    echo "|----|-------------|--------|" >> "$tmp_md"
+    echo "" >> "$tmp_md"
+    
+    # Write data from JSON
+    jq -r '.[] | "| #\(.id) | \(.description) | \(.status) |"' "$JSON_FILE" >> "$tmp_md"
+    
+    mv "$tmp_md" "$MD_FILE"
 }
 
 # List PRs (from JSON)
@@ -30,7 +58,7 @@ cmd_list() {
     
     # Read JSON and display
     if [[ -s "$JSON_FILE" ]] && [[ $(cat "$JSON_FILE" | tr -d ' ') != "[]" ]]; then
-        cat "$JSON_FILE" | jq -r '.[] | "  #\(.id) | \(.description) | \(.status)"' 2>/dev/null || cat "$MD_FILE" | tail -n +5 | grep "^|"
+        cat "$JSON_FILE" | jq -r '.[] | "  #\(.id) | \(.description) | \(.status)"' 2>/dev/null
     else
         echo "No PRs to pull. Use +<num> to add."
     fi
@@ -74,6 +102,9 @@ cmd_sync() {
     pr_ids=$(jq -r '.[] | .id' "$JSON_FILE")
     
     for pr_id in $pr_ids; do
+        local description
+        description=$(jq -r --arg id "$pr_id" '.[] | select(.id == $id) | .description' "$JSON_FILE")
+        
         local status
         status=$(gh pr view "$pr_id" -R "$repo_ref" --json state -q '.state' 2>/dev/null) || status="unknown"
         case "$status" in
@@ -81,14 +112,18 @@ cmd_sync() {
             CLOSED) status="closed" ;;
             OPEN) status="open" ;;
         esac
-        echo "PR #$pr_id: $status"
+        echo "PR #$pr_id ($description): $status"
         
         # Update JSON
         local tmp_update
         tmp_update=$(mktemp)
         jq --arg id "$pr_id" --arg status "$status" 'map(if .id == $id then .status = $status else . end)' "$JSON_FILE" > "$tmp_update" && mv "$tmp_update" "$JSON_FILE"
+        
         count=$((count + 1))
     done
+    
+    # Sync MD from JSON
+    json2md
     
     echo "Synced $count PRs from GitHub"
 }
@@ -101,7 +136,7 @@ cmd_add() {
     init_files
     
     # Check if already exists in JSON
-    if grep -q "\"id\":.*\"$pr_num\"" "$JSON_FILE"; then
+    if jq -e --arg id "$pr_num" '.[] | select(.id == $id)' "$JSON_FILE" >/dev/null 2>&1; then
         echo "PR #$pr_num already in pull list"
         return
     fi
@@ -118,8 +153,8 @@ cmd_add() {
     tmp_json=$(mktemp)
     jq --arg id "$pr_num" --arg desc "$title" --arg status "open" '. += [{"id": $id, "description": $desc, "status": $status}]' "$JSON_FILE" > "$tmp_json" && mv "$tmp_json" "$JSON_FILE"
     
-    # Add to MD
-    echo "| #$pr_num | $title | open |" >> "$MD_FILE"
+    # Sync MD from JSON
+    json2md
     
     echo "Added #$pr_num to pull: $title"
 }
@@ -131,12 +166,13 @@ cmd_remove() {
     
     init_files
     
-    if grep -q "\"id\".*\"$pr_num\"" "$JSON_FILE"; then
+    if jq -e --arg id "$pr_num" '.[] | select(.id == $id)' "$JSON_FILE" >/dev/null 2>&1; then
         local tmp_json
         tmp_json=$(mktemp)
         jq --arg id "$pr_num" 'map(select(.id != $id))' "$JSON_FILE" > "$tmp_json" && mv "$tmp_json" "$JSON_FILE"
         
-        grep -v "#$pr_num " "$MD_FILE" > "${MD_FILE}.tmp" && mv "${MD_FILE}.tmp" "$MD_FILE"
+        # Sync MD from JSON
+        json2md
         
         echo "Removed #$pr_num from pull"
     else
