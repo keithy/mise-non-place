@@ -1,0 +1,10 @@
+#!/bin/bash
+# commit-all - Commit changes across all related repos
+
+root="${MES_project_root}"
+repos=("$root" "$root/.mise" "$root/mise")
+
+for repo in "${repos[@]}"; do
+  echo "=== $repo ==="
+  (cd "$repo" && git add -A && git commit -m "$message")
+done
