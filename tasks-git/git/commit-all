@@ -6,5 +6,5 @@ repos=("$root" "$root/.mise" "$root/mise")
 
 for repo in "${repos[@]}"; do
   echo "=== $repo ==="
-  (cd "$repo" && git add -A && git commit -m "$message")
+  (cd "$repo" && git add -A && git commit -m "$MESSAGE")
 done
