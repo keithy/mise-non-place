@@ -1,0 +1,52 @@
+#!/bin/bash
+#MISE description="Switch to next version (atomic: save, stop, switch, start)"
+#MISE arg DEPLOY_SERVICE_NAME default:picoclaw
+#MISE arg BUILD_NEXT default:build-next
+#MISE arg BUILD_CURRENT default:build-current
+#MISE arg BUILD_PREV default:build-prev
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+DEPLOY_SERVICE_NAME="${1:-${DEPLOY_SERVICE_NAME:-picoclaw}}"
+BUILD_NEXT="${BUILD_NEXT:-build-next}"
+BUILD_CURRENT="${BUILD_CURRENT:-build-current}"
+BUILD_PREV="${BUILD_PREV:-build-prev}"
+
+# BEFORE stopping service: setup auto-rollback
+echo "[SWITCH] Setting up auto-rollback (10min)..."
+"$SCRIPT_DIR/rollback" --prepare
+
+# NOW stop service
+echo "[SWITCH] Stopping $DEPLOY_SERVICE_NAME service..."
+if command -v "$DEPLOY_SERVICE_NAME" &>/dev/null; then
+    "$DEPLOY_SERVICE_NAME" service stop 2>/dev/null || true
+elif command -v "${DEPLOY_SERVICE_NAME}-manager" &>/dev/null; then
+    "${DEPLOY_SERVICE_NAME}-manager" service stop 2>/dev/null || true
+elif systemctl --user is-active "$DEPLOY_SERVICE_NAME" &>/dev/null; then
+    systemctl --user stop "$DEPLOY_SERVICE_NAME"
+else
+    echo "[SWITCH] Could not find service to stop"
+fi
+
+# Atomic switch
+echo "[SWITCH] Switching builds..."
+rm -rf "$BUILD_PREV"
+mv "$BUILD_CURRENT" "$BUILD_PREV"
+rm -rf "$BUILD_CURRENT"
+mv "$BUILD_NEXT" "$BUILD_CURRENT"
+echo "[SWITCH] $BUILD_CURRENT -> $BUILD_PREV"
+echo "[SWITCH] $BUILD_NEXT -> $BUILD_CURRENT"
+
+# Start service
+echo "[SWITCH] Starting $DEPLOY_SERVICE_NAME service..."
+if command -v "$DEPLOY_SERVICE_NAME" &>/dev/null; then
+    "$DEPLOY_SERVICE_NAME" service start 2>/dev/null || true
+elif command -v "${DEPLOY_SERVICE_NAME}-manager" &>/dev/null; then
+    "${DEPLOY_SERVICE_NAME}-manager" service start 2>/dev/null || true
+elif systemctl --user list-unit-files | grep -q "$DEPLOY_SERVICE_NAME"; then
+    systemctl --user start "$DEPLOY_SERVICE_NAME"
+else
+    echo "[SWITCH] Could not restart service. Start manually."
+fi
+
+echo "[SWITCH] Done. Run 'confirm' in 10min to cancel rollback."

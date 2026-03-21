@@ -1,0 +1,72 @@
+#!/bin/bash
+#MISE description="Rollback to previous version / Setup auto-rollback"
+#MISE arg SERVICE_NAME default:picoclaw
+#MISE arg BUILD_CURRENT default:build-current
+#MISE arg BUILD_NEXT default:build-next
+#MISE arg BUILD_PREV default:build-prev
+#MISE arg DEPLOY_STATUS_DIR default:$HOME/.picoclaw
+set -euo pipefail
+
+SERVICE_NAME="${1:-${SERVICE_NAME:-picoclaw}}"
+BUILD_CURRENT="${BUILD_CURRENT:-build-current}"
+BUILD_NEXT="${BUILD_NEXT:-build-next}"
+BUILD_PREV="${BUILD_PREV:-build-prev}"
+DEPLOY_STATUS_DIR="${DEPLOY_STATUS_DIR:-$HOME/.picoclaw}"
+MARKER="${DEPLOY_STATUS_DIR}/BUILD-PENDING-ROLLBACK"
+AUTOROLLBACK_SECONDS="${AUTOROLLBACK_SECONDS:-600}"
+
+# Mode 1: Prepare - start background timer and return immediately
+if [ "${1:-}" = "--prepare" ]; then
+    echo "[AUTOROLLBACK] Starting timer (${AUTOROLLBACK_SECONDS}s)..."
+    echo "$$" > "$MARKER"
+    
+    # Background process that does rollback if timer expires
+    (
+        sleep "$AUTOROLLBACK_SECONDS"
+        if [ -f "$MARKER" ]; then
+            echo "[AUTOROLLBACK] Timer expired, rolling back..."
+            exec "$0" "$SERVICE_NAME"
+        fi
+    ) &
+    
+    echo "[AUTOROLLBACK] Timer started in background"
+    exit 0
+fi
+
+# Mode 2: Perform rollback (called by timer or manually)
+if [ -f "$MARKER" ]; then
+    echo "[ROLLBACK] Auto-rollback triggered"
+    rm -f "$MARKER"
+else
+    # Manual rollback - require confirmation
+    if [ ! -d "$BUILD_PREV" ]; then
+        echo "[ROLLBACK] No previous build found."
+        exit 1
+    fi
+    echo "[ROLLBACK] Manual rollback"
+fi
+
+echo "[ROLLBACK] Stopping $SERVICE_NAME service..."
+if command -v "$SERVICE_NAME" &>/dev/null; then
+    "$SERVICE_NAME" service stop 2>/dev/null || true
+elif command -v "${SERVICE_NAME}-manager" &>/dev/null; then
+    "${SERVICE_NAME}-manager" service stop 2>/dev/null || true
+elif systemctl --user is-active "$SERVICE_NAME" &>/dev/null; then
+    systemctl --user stop "$SERVICE_NAME"
+fi
+
+echo "[ROLLBACK] Restoring previous build..."
+rm -rf "$BUILD_NEXT"
+mv "$BUILD_CURRENT" "$BUILD_NEXT"
+mv "$BUILD_PREV" "$BUILD_CURRENT"
+
+echo "[ROLLBACK] Restarting $SERVICE_NAME service..."
+if command -v "$SERVICE_NAME" &>/dev/null; then
+    "$SERVICE_NAME" service start 2>/dev/null || true
+elif command -v "${SERVICE_NAME}-manager" &>/dev/null; then
+    "${SERVICE_NAME}-manager" service start 2>/dev/null || true
+elif systemctl --user list-unit-files | grep -q "$SERVICE_NAME"; then
+    systemctl --user start "$SERVICE_NAME"
+fi
+
+echo "[ROLLBACK] Done."

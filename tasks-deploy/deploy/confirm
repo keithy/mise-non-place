@@ -1,0 +1,16 @@
+#!/bin/bash
+#MISE description="Confirm current version, cancel auto-rollback"
+#MISE arg SERVICE_NAME default:picoclaw
+#MISE arg DEPLOY_STATUS_DIR default:$HOME/.picoclaw
+set -euo pipefail
+
+SERVICE_NAME="${1:-${SERVICE_NAME:-picoclaw}}"
+DEPLOY_STATUS_DIR="${DEPLOY_STATUS_DIR:-$HOME/.picoclaw}"
+MARKER="${DEPLOY_STATUS_DIR}/BUILD-PENDING-ROLLBACK"
+
+if [ -f "$MARKER" ]; then
+    rm -f "$MARKER"
+    echo "[CONFIRM] Auto-rollback cancelled. Version confirmed."
+else
+    echo "[CONFIRM] No pending rollback."
+fi
