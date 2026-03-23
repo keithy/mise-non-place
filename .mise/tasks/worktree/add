@@ -22,13 +22,14 @@ fi
 WORKTREE_NAME="${1:-}"
 TEMPLATE="${2:-}"
 
-# Get defaults from config
-DEFAULT_TEMPLATE="${MISE_TEMPLATE_DEFAULT:-template/empty}"
+# Get defaults from env
+DEFAULT_WORKTREE="${MISE_WORKTREE:-mise}"
+DEFAULT_TEMPLATE="${MISE_TEMPLATE:-template/empty}"
 
 # If no args, prompt interactively
 if [ -z "$WORKTREE_NAME" ]; then
-    read -p "Worktree name (default: mise): " WORKTREE_NAME
-    WORKTREE_NAME="${WORKTREE_NAME:-mise}"
+    read -p "Worktree name (default: $DEFAULT_WORKTREE): " WORKTREE_NAME
+    WORKTREE_NAME="${WORKTREE_NAME:-$DEFAULT_WORKTREE}"
     read -p "Template branch (default: $DEFAULT_TEMPLATE): " TEMPLATE
     TEMPLATE="${TEMPLATE:-$DEFAULT_TEMPLATE}"
 elif [ -z "$TEMPLATE" ]; then
